@@ -1,0 +1,8 @@
+local_files/
+LOGS/
+*.log
+target/
+Thumbs.db
+src/main/java/unused/
+handshake error.txt
+src/main/java/fyp/SharedServices/OCSPHandler.java

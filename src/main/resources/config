@@ -1,0 +1,80 @@
+#______________Root CA ___________________
+rootPort = 8001
+rootIP = localhost
+rootAlias = Root Certification Authority
+
+rootKeystorePath = Keystore/root_ca.keystore
+rootKeystorePass = password
+rootCertAlias = RootCA_Certificate
+rootKeyAlias = RootCA_PrivateKey
+
+rootTruststorePath = Truststore/root_ca.truststore
+#rootTruststorePath = Truststore/root_ca.p12
+rootTruststorePass = password
+
+#______________CA ___________________
+caPort = 8002
+caIP = localhost
+caAlias = Signing Certification Authority
+
+caKeystorePath = Keystore/ca.keystore
+caKeystorePass = password
+caCertAlias = CA_Certificate
+caKeyAlias = CA_PrivateKey
+
+caTruststorePath = Truststore/ca.truststore
+#caTruststorePath = Truststore/ca.p12
+caTruststorePass = password
+
+#_________________RA _________________
+raPort = 8003
+raIP = localhost
+raAlias = Registration Authority
+
+raKeystorePath = Keystore/ra.keystore
+raKeystorePass = password
+raCertAlias = RA_Certificate
+raKeyAlias = RA_PrivateKey
+
+raTruststorePath = Truststore/ra.truststore
+#raTruststorePath = Truststore/ra.p12
+raTruststorePass = password
+
+
+#_________________VA _________________
+vaPort = 8004
+vaIP = localhost
+vaAlias = Validation Authority
+
+vaKeystorePath = Keystore/va.keystore
+vaKeystorePass = password
+vaCertAlias = VA_Certificate
+vaKeyAlias = VA_PrivateKey
+
+vaTruststorePath = Truststore/va.truststore
+vaTruststorePass = password
+
+#_________________DATABASE_________________
+dbURL = jdbc:mysql://mysql1.it.nuigalway.ie/mydb3899
+dbOwner = mydb3899om
+dbPass = to2ben
+
+# _________________DEVICES_________________
+devicesKeystorePath=Keystore/devices.keystore
+devicesKeystorePass=password
+devicesTruststorePath=Truststore/devices.truststore
+devicesTruststorePass=password
+devicesCertAlias=Device_Certificate
+devicesKeyAlias=Device_Private
+
+# _____________ CRL ________________
+RevokedPath = crl/CRL_list.crl
+
+#_____________certStore_______________
+certstorePath = CertStore/certificates.store
+certstorePass = password
+
+
+
+
+
