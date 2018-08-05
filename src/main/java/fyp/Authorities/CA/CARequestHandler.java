@@ -3,11 +3,13 @@ package fyp.Authorities.CA;
 import fyp.SharedServices.CertificateHandler;
 import fyp.SharedServices.Configuration;
 import fyp.SharedServices.KeyStoreHandler;
+import fyp.SharedServices.OCSPHandler;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -18,6 +20,9 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.commons.io.FileUtils;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.cert.X509CRLHolder;
 import org.bouncycastle.operator.OperatorCreationException;
 
 /**
@@ -35,8 +40,8 @@ public class CARequestHandler extends Thread implements Runnable {
     private PrivateKey caKey;
     private String certStorePath = Configuration.get("certstorePath");
     private String certStorePassword = Configuration.get("certstorePass");
-    private static final String CA_IP = Configuration.get("caIP");
-    private static final int CA_PORT = Integer.parseInt(Configuration.get("caPort"));
+    private static final String vaIP = Configuration.get("vaIP");
+    private static final int vaPORT = Integer.parseInt(Configuration.get("vaPort"));
     private String deviceCertAlias = Configuration.get("devicesCertAlias");
     //private static final int CA_HTTP_PORT = Integer.parseInt(Configuration.get("caHttpPort"));
 
@@ -71,8 +76,12 @@ public class CARequestHandler extends Thread implements Runnable {
                     X509Certificate certificate = CertificateHandler.createDeviceCertificate(caKey, caCert, csr.getSubject(), csr.getSubjectPublicKeyInfo(), OCSP_URL);
                     System.out.println("Certificate created Successfully: " + certificate.getSubjectDN() + " : serialNumber=" + certificate.getSerialNumber());
                     response = certificate.getEncoded();
-                    KeyStoreHandler.storeCertificateEntry(deviceCertAlias, certificate, certStorePath, certStorePassword);
-
+                    //TODO: make sure alias contains some cert specific info -like devices MAC or cert SN
+                    try {
+                        KeyStoreHandler.storeCertificateEntry(deviceCertAlias, certificate, certStorePath, certStorePassword);
+                    } catch (KeyStoreException | CertificateException | NoSuchAlgorithmException | IOException | NoSuchProviderException | OperatorCreationException e) {
+                        CARequestLogger.log(Level.SEVERE, "Unable to save cert to the CertStore", e);
+                    }
                     /*
                     System.setProperty("javax.net.ssl.keyStore", Configuration.get("caKeystorePath"));
                     System.setProperty("javax.net.ssl.keyStorePassword", Configuration.get("caKeystorePass"));
@@ -89,8 +98,53 @@ public class CARequestHandler extends Thread implements Runnable {
                     }
                      */
                 } catch (CertificateEncodingException | IOException e) {
-                    CARequestLogger.log(Level.SEVERE, "Unable to create Certificate", e);
-                    response = "Unable to create certificate".getBytes();
+                    //TODO: go through that as sth is not right
+                    String certSN = new String(request);
+                    System.out.println("-----------------------------------CERT SN--------------  " + certSN);
+                    //String m = "Unable to create Certificate. Sending Revocation Request for cert: " + certSN;
+                    String m = "Unable to create Certificate: " + certSN;
+                    CARequestLogger.log(Level.SEVERE, m, e);
+                    response = m.getBytes();
+                    //Revoke then ???----------------------------------------
+                    //TODO: all that should run from rootCAHandler
+                    //on this level it should only send revocation request to root just like RA sends request to CA
+                    /*try {
+                        String crlFileName = Configuration.get("CRL_FILE_PATH");
+                        X509CRLHolder crlHolder =  new X509CRLHolder(new FileInputStream(crlFileName));
+                        X509CRLHolder newCrlHolder = OCSPHandler.revokeCertificate(crlHolder, certSN, caCert, caKey);
+
+                        //save to the file system
+                        FileUtils.writeByteArrayToFile(new File(crlFileName), newCrlHolder.getEncoded());
+
+                        System.out.println("CRL (version " + crlHolder.getExtension(Extension.cRLNumber).getParsedValue().toString()
+                                + ") - new entry added: SN= " + certSN + ". Update sent to : " + vaIP + ":" + vaPORT);
+
+                        String res = "Certificate no: " + certSN + " revoked successfully";
+                        response = res.getBytes();
+                        //byte[] vaResponse ;
+                        //-----------------
+                        try{
+                        System.setProperty("javax.net.ssl.keyStore", "keystore/ca.keystore");
+                        System.setProperty("javax.net.ssl.keyStorePassword", "password");
+                        SSLSocketFactory f = (SSLSocketFactory) SSLSocketFactory.getDefault();
+                            try (SSLSocket connectionVA = (SSLSocket) f.createSocket(vaIP, vaPORT)) {
+                                connectionVA.startHandshake();
+                                DataOutputStream dos = new DataOutputStream(connectionVA.getOutputStream());
+                                //DataInputStream dis = new DataInputStream(connectionVA.getInputStream());
+                                dos.write(newCrlHolder.getEncoded());
+                                //vaResponse = CertificateHandler.readDataFromInputStream(dis);
+                                //-----------------
+                            }
+                        }
+                        catch(Exception ex){
+                            
+                        }
+                    } catch (Exception ex) {
+                        response = "Unable to save the Revocation Status.".getBytes();
+
+                    }*/
+                    //Revoke then finished__________________________________
+
                 }
 
             } catch (IOException | NumberFormatException | OperatorCreationException | CertificateException | NoSuchAlgorithmException | NoSuchProviderException e) {
@@ -105,7 +159,7 @@ public class CARequestHandler extends Thread implements Runnable {
                 CARequestLogger.log(Level.INFO, "Response sent to : {0}", clientSslSocket.getInetAddress().getHostAddress());
                 System.out.println("--------------- CA Request successful! ------------------");
             }
-        } catch (IOException | KeyStoreException ex) {
+        } catch (IOException ex) {
             CARequestLogger.log(Level.SEVERE, null, ex);
         } finally {
             try {

@@ -1,5 +1,6 @@
 package fyp.UI;
 
+import fyp.SharedServices.HandshakeHandler;
 import fyp.SharedServices.LogFile;
 import fyp.SharedServices.CertificateHandler;
 import fyp.SharedServices.Configuration;
@@ -21,6 +22,8 @@ import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.OperatorCreationException;
+import java.awt.Desktop;
+import java.io.File;
 
 /**
  *
@@ -30,7 +33,7 @@ public class UserInput {
 
     private static final Logger UserInputLogger = Logger.getLogger(UserInput.class.getName());
 
-    private static X509Certificate newCert;
+    private static X509Certificate devCert;
     private static String raIP;
     private static int raPORT;
     private static String caIP;
@@ -49,7 +52,7 @@ public class UserInput {
     public static void main(String... args) throws KeyManagementException {
 
         LogFile.logFile(UserInputLogger);
-        Security.addProvider(new BouncyCastleProvider()); 
+        Security.addProvider(new BouncyCastleProvider());
 
         tsPath = Configuration.get("devicesTruststorePath");
         tsPass = Configuration.get("devicesTruststorePass");
@@ -95,32 +98,32 @@ public class UserInput {
         }
          */
 //-------------------end of delete if needed---------------------
-  /*      try {
+        /*      try {
             newCert = KeyStoreHandler.getCertificate(deviceCert, deviceKsPath, deviceKsPass);
         } catch (Exception e) {
             UserInputLogger.log(Level.SEVERE, "Unable to read get cert - device specification", e);
         }
-*/
+         */
         try {
-
-            String rootCertPath = ".\\Root_CA.cer";
+            // Establish the trust by putting authority certs into devices Truststore 
+            String rootCertPath = ".\\Certificates\\Root_CA.cer";
             getCertificateFromPath(rootCertPath, rootCertAlias);
-            System.out.println(" --------- Root CA Certificate Retrieved Successfully: " + rootCertPath);
+            UserInputLogger.log(Level.INFO, " --------- Root CA Certificate Retrieved Successfully: {0}", rootCertPath);
 
-            String caCertPath = ".\\CA.cer";
+            String caCertPath = ".\\Certificates\\CA.cer";
             getCertificateFromPath(caCertPath, caCertAlias);
-            System.out.println(" ----------- CA Certificate Retrieved Successfully: " + caCertPath);
+            UserInputLogger.log(Level.INFO, " --------- CA Certificate Retrieved Successfully: {0}", caCertPath);
 
-            String raCertPath = ".\\RA.cer";
+            String raCertPath = ".\\Certificates\\RA.cer";
             getCertificateFromPath(raCertPath, raCertAlias);
-            System.out.println(" ------------- RA Certificate Retrieved Successfully: " + raCertPath);
+            UserInputLogger.log(Level.INFO, " --------- RA Certificate Retrieved Successfully: {0}", raCertPath);
 
-            String vaCertPath = ".\\VA.cer";
+            String vaCertPath = ".\\Certificates\\VA.cer";
             getCertificateFromPath(vaCertPath, vaCertAlias);
-            System.out.println("---------- VA Certificate Retrieved Successfully: " + vaCertPath);
+            UserInputLogger.log(Level.INFO, " --------- VA Certificate Retrieved Successfully: {0}", vaCertPath);
 
         } catch (IOException | KeyStoreException | CertificateException | NoSuchAlgorithmException | NoSuchProviderException | OperatorCreationException e) {
-            System.err.println(" Unable to get trusted authorities certificates!");
+            UserInputLogger.log(Level.SEVERE, "Unable to get trusted authority certificates!", e);
         }
 
         try {
@@ -171,7 +174,7 @@ public class UserInput {
     }
 
     /**
-     * Method reads user input as int (if not int then returns null)
+     * Method reads user input as integer (if not integer then returns null)
      *
      * @return int (or null)
      */
@@ -235,33 +238,39 @@ public class UserInput {
 
         public void mainMenu(String MAC) throws Exception {
             int userOption = manageDeviceMenu();
-
+            String normMAC = normalizeMAC(MAC);
             switch (userOption) {
 
                 //Request new Cert
                 case 1:
                     String deviceSpec = readDeviceSpecs(MAC);
+
                     KeyPair keyPair = CertificateHandler.generateKeyPair();
-                    System.out.println("DEVICE SPECS in UserInput: " + deviceSpec);
-                    newCert = CertificateHandler.requestCertificate(raIP, raPORT, deviceSpec, keyPair);
-                    System.out.println("request sent in USERINPUT");
-                    if (newCert != null) {
-                        //write to the local storage / db
 
-                        KeyStoreHandler.storeCertificateEntry(deviceCert, newCert, deviceKsPath, deviceKsPass);
-                        KeyStoreHandler.storePrivateKeyEntry(deviceKey, keyPair.getPrivate(), newCert, deviceKsPath, deviceKsPass);
-                        System.out.println("MAC:"+MAC);
-                        CertificateHandler.saveCertToFile(newCert, "Device " + normalizeMAC(MAC));
-                        System.out.println("if the cert exists USERINPUT");
+                    devCert = CertificateHandler.requestCertificate(raIP, raPORT, deviceSpec, keyPair);
+                    UserInputLogger.log(Level.INFO, "Certificate for {0} successfully created", devCert.getSubjectDN());
+                    if (devCert != null) {
+                        //write to the local storage / external db
+                        KeyStoreHandler.storeCertificateEntry(deviceCert + normMAC, devCert, deviceKsPath, deviceKsPass);
+                        KeyStoreHandler.storePrivateKeyEntry(deviceKey + normMAC, keyPair.getPrivate(), devCert, deviceKsPath, deviceKsPass);
+                        CertificateHandler.saveCertToFile(devCert, "Device " + normMAC);
+                        UserInputLogger.log(Level.INFO, "Certificate for {0} saved to file and Keystore", devCert.getSubjectDN());
                     }
-
-                    return;
+                    int uOption = manageCertMenu();
+                    manageCertHandler(uOption, normMAC);
+                    //return ;
+                    break;
 
                 // Manage existing cert
                 case 2:
                     userOption = manageCertMenu();
-                    manageCertHandler(userOption);
+                    manageCertHandler(userOption, normMAC);
+                    break;
+
                 default:
+                    System.out.println("Only 1 or 2 are possible options!");
+                    System.out.println("Choose again:");
+                    mainMenu(MAC);
                     break;
             }
 
@@ -271,7 +280,7 @@ public class UserInput {
             Scanner sc = new Scanner(System.in);
             if (mAddr != null) {
                 try {
-                    System.out.println("You entered: " + mAddr + "\nAre you sure device MAC is correct ?[Y/N]");
+                    System.out.println("You entered: " + mAddr + "\nAre you sure the MAC Address is correct ?[Y/N]");
                     char yesNo = sc.next().charAt(0);
 
                     switch (Character.toUpperCase(yesNo)) {
@@ -279,22 +288,24 @@ public class UserInput {
                             if (validateMac(mAddr)) {
                                 mainMenu(mAddr);
                             } else {
-                                System.out.println("MAC address not valid. Lets try again!");
-                                startMenu();
                                 UserInputLogger.log(Level.SEVERE, "MAC address not valid.");
+                                System.out.println("MAC address invalid. Lets try again!");
+                                startMenu();
+
                             }
                             break;
                         case 'N':
                             startMenu();
-                        //break;
+                            break;
                         default:
                             System.out.println("Only Y/N are possible options");
-                            startMenu();
-                        //break;
+                            System.out.println("Let's try again:");
+                            yesNoOption(mAddr);
+                            break;
                     }
 
                 } catch (Exception e) {
-                    UserInputLogger.log(Level.INFO, "Exception in YES/NO user input.", e);
+                    UserInputLogger.log(Level.SEVERE, "Exception in YES/NO user input.", e);
                 }
             }
         }
@@ -303,14 +314,13 @@ public class UserInput {
             System.out.println("========================================");
             System.out.println("|         Manage Certificate           |");
             System.out.println("========================================");
-            System.out.println("Select Option: ");
-            System.out.println("1 - View Certificate"); //View Certificate ???????????
-            System.out.println("2 - Validate Certificate");
-            System.out.println("3 - Revoke Certificate");
-            System.out.println("4 - <---- Back");
+            System.out.println("| Options:                             |");
+            System.out.println("|    1 - View Certificate              |");
+            System.out.println("|    2 - Validate Certificate          |");
+            System.out.println("|    3 - Revoke Certificate            |");
+            System.out.println("|    4 - <----Go Back to Main Menu     |");
             System.out.println("========================================");
             System.out.print(" Choose Option: ");
-
             return readUserInt();
         }
 
@@ -326,27 +336,58 @@ public class UserInput {
             return readUserInt();
         }
 
-        private static void manageCertHandler(int userOption) throws Exception {
+        private static void manageCertHandler(int userOption, String normalizedMAC) throws Exception {
             switch (userOption) {
-                //1-View Certificate
+
                 case 1:
+                    //1-View Certificate
+                    devCert = KeyStoreHandler.getCertificate(deviceCert + normalizedMAC, deviceKsPath, deviceKsPass);
+                    System.out.println(devCert);
+                    Desktop.getDesktop().open(new File("./Certificates/"));
+                    /*System.out.println("Press any key to cotinue...");
+                    Scanner sc = new Scanner(System.in);
+                    if (sc.next() != null) {*/
+                    int uOption = manageCertMenu();
+                    manageCertHandler(uOption, normalizedMAC);
+                    //}
 
+                    // return;
                     break;
-                //2-Validate Cert
                 case 2:
-
+                    //2-Validate Cert
+                    devCert = KeyStoreHandler.getCertificate(deviceCert + normalizedMAC, deviceKsPath, deviceKsPass);
+                    if (devCert == null) {
+                        System.out.println("Error! You don't have a certificate, Please request a new one");
+                        return;
+                    }
+                    //X509Certificate rootCert = KeyStoreHandler.getCertificate(rootCertAlias, tsPath, tsPass);
+                    X509Certificate rootCert = KeyStoreHandler.getCertificate(rootCertAlias, tsPath, tsPass);
+                    X509Certificate vaCert = KeyStoreHandler.getCertificate(vaCertAlias, tsPath, tsPass);
+                    CertificateHandler.validateCertificate(devCert, rootCert, vaCert);
+                    int uOpt = manageCertMenu();
+                    manageCertHandler(uOpt, normalizedMAC);
                     break;
-                //3-Revoke cert
                 case 3:
-
+                    //3-Revoke cert
+                    String rootIP = Configuration.get("rootIP");
+                    int rootPort = Integer.parseInt(Configuration.get("rootPort"));
+                    try {
+                        new HandshakeHandler(rootIP, rootPort).revokeCertificate(normalizedMAC);
+                    } catch (Exception e) {
+                        UserInputLogger.log(Level.SEVERE, "Certification Revocation Failed !", e);
+                    }
+                    int usrOpt = manageCertMenu();
+                    manageCertHandler(usrOpt, normalizedMAC);
                     break;
                 case 4:
-                    MenuHandler mHandler = new MenuHandler();
-                    mHandler.startMenu();
+                    //4-Go Back  
+                    new MenuHandler().startMenu();
+                    break;
                 default:
-                    System.out.println("Only options 1, 2, 3 or 4 are available.");
+                    System.out.println("Only options 1 - 4 are available.");
                     System.out.println("Choose again:");
-                    manageCertHandler(userOption);
+                    manageCertHandler(userOption, normalizedMAC);
+                    break;
             }
             System.out.println("");
         }

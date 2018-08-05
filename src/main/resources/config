@@ -68,7 +68,7 @@ devicesCertAlias=Device_Certificate
 devicesKeyAlias=Device_Private
 
 # _____________ CRL ________________
-RevokedPath = crl/CRL_list.crl
+RevokedPath = CRL/CRL_list.crl
 
 #_____________certStore_______________
 certstorePath = CertStore/certificates.store

@@ -1,6 +1,8 @@
 package fyp.SharedServices;
 
+import java.math.BigInteger;
 import java.sql.*;
+import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.net.ssl.SSLSocket;
@@ -20,8 +22,9 @@ public class DatabaseHandler {
     static final String DB_URL = Configuration.get("dbURL");
     static final String USER = Configuration.get("dbOwner");
     static final String PASS = Configuration.get("dbPass");
-    static Connection conn = null;
-    static Statement stmt = null;
+    static Connection conn;
+    static Statement stmt;
+
 
     public DatabaseHandler() throws SQLException, ClassNotFoundException {
         LogFile.logFile(dbLogger);
@@ -29,15 +32,15 @@ public class DatabaseHandler {
         Class.forName("com.mysql.jdbc.Driver");
         System.out.println("Connecting to database...");
         conn = DriverManager.getConnection(DB_URL, USER, PASS);
+        stmt = conn.createStatement();
+        dbLogger.log(Level.INFO, "DB Connection strted");
 
     }
 
-    public void dbInit() {
+    public void createCertificatesTable() {
 
         try {
-            System.out.println("Creating statement...");
-            stmt = conn.createStatement();
-            System.out.println("Connection working");
+            //String sql = "DROP TABLE IF EXISTS CERTIFICATES"; // Delete table (in needed)
             String sql = "CREATE TABLE CERTIFICATES "
                     + "(Version VARCHAR(255), "
                     //+ " SerialNumber BIGINT, " 
@@ -52,98 +55,115 @@ public class DatabaseHandler {
                     //Extensions
                     + " Extensions TEXT, "
                     + " PRIMARY KEY ( SerialNumber ))";
-            ResultSet rs = stmt.executeQuery(sql);
+            stmt.executeUpdate(sql);
 
-            rs.close();
-            //stmt.close();
-            //conn.close();
         } catch (SQLException se) {
-
             dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
         } catch (Exception e) {
             dbLogger.log(Level.SEVERE, "Unable to process query", e);
         } finally {
             //finally block used to close resources
-            try {
-                if (stmt != null) {
-                    stmt.close();
-                }
-            } catch (SQLException e) {
-                dbLogger.log(Level.SEVERE, "Unable to close DB statement: ", e);
-            }
-            try {
-                if (conn != null) {
-                    conn.close();
-                }
-            } catch (SQLException se) {
-                dbLogger.log(Level.SEVERE, "Unable to close DB connection: ", se);
-            }
+            closeDatabase(conn, stmt);
         }
-        System.out.println("Closing DB connection");
+
     }
-public void saveCert2DB() {
+
+    public void createCRLTable() {
 
         try {
-            System.out.println("Creating statement...");
-            stmt = conn.createStatement();
-            System.out.println("Connection working");
-            String sql = "CREATE TABLE CERTIFICATES "
-                    + "(Version VARCHAR(255), "
-                    //+ " SerialNumber BIGINT, " 
-                    + " SerialNumber VARBINARY(8), "
-                    + " SignatureAlgorithm VARCHAR(255), "
-                    + " SignatureHashAlgorithm VARCHAR(255), "
-                    + " Issuer VARCHAR(255), "
-                    + " NotBefore TIMESTAMP, "
-                    + " NotAfter TIMESTAMP, "
-                    + " SubjectName VARCHAR(255), "
-                    + " PublicKey VARBINARY(8), "
-                    //Extensions
-                    + " Extensions TEXT, "
+            //String sql = "DROP TABLE IF EXISTS CRL"; // Delete table (in needed)
+           String sql = "CREATE TABLE IF NOT EXISTS CRL "
+                    + "(SerialNumber BIGINT, "
+                    + " RevocationDate DATE, "
+                    + " Reason VARCHAR(255), "
                     + " PRIMARY KEY ( SerialNumber ))";
-            ResultSet rs = stmt.executeQuery(sql);
-
-            rs.close();
-            //stmt.close();
-            //conn.close();
+            stmt.executeUpdate(sql);
+            dbLogger.log(Level.INFO, "CRL database created successfully");
         } catch (SQLException se) {
 
             dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
         } catch (Exception e) {
             dbLogger.log(Level.SEVERE, "Unable to process query", e);
         } finally {
-            //finally block used to close resources
-            try {
-                if (stmt != null) {
-                    stmt.close();
-                }
-            } catch (SQLException e) {
-                dbLogger.log(Level.SEVERE, "Unable to close DB statement: ", e);
-            }
-            try {
-                if (conn != null) {
-                    conn.close();
-                }
-            } catch (SQLException se) {
-                dbLogger.log(Level.SEVERE, "Unable to close DB connection: ", se);
-            }
+            //close resources
+            closeDatabase(conn, stmt);
         }
-        System.out.println("Closing DB connection");
+    }
+
+    public void saveCertToDB() {
+
+        try {
+            String sql = "INSERT INTO CERTIFICATES ";
+            stmt.executeUpdate(sql);
+        } catch (SQLException se) {
+            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
+        } catch (Exception e) {
+            dbLogger.log(Level.SEVERE, "Unable to process query", e);
+        } finally {
+            //close resources
+            closeDatabase(conn, stmt);
+        }
+    }
+
+    public static void updateCRLtoDB(BigInteger serialNo, Date revDate, String reason) {
+
+        try {
+            String sql = "INSERT INTO CRL VALUES (" + serialNo + ", '" + revDate + "', '" + reason + "')";
+            stmt.executeUpdate(sql);
+            dbLogger.log(Level.INFO, "CRL database updated successfully");
+        } catch (SQLException se) {
+            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
+        } catch (Exception e) {
+            dbLogger.log(Level.SEVERE, "Unable to process query", e);
+        } finally {
+            //close resources
+            closeDatabase(conn, stmt);
+        }
+
+    }
+
+    public static boolean isCertInCRL(BigInteger serialNo) {
+        Boolean check = null;
+        try {
+            String sql = "SELECT * FROM CRL "
+                    + "WHERE SerialNumber = " + serialNo;
+            ResultSet rs = stmt.executeQuery(sql);
+
+            if (rs != null) {
+                System.out.println("Serial Number in CRL. Certificate revoked!");
+                check = true;
+            } else {
+                check = false;
+            }
+
+        } catch (SQLException se) {
+            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
+        } catch (Exception e) {
+            dbLogger.log(Level.SEVERE, "Unable to process query", e);
+        } finally {
+            //close resources
+            closeDatabase(conn, stmt);
+        }
+        return check;
+    }
+
+    private static void closeDatabase(Connection c, Statement s) {
+
+        try {
+            if (s != null) {
+                s.close();
+            }
+        } catch (SQLException e) {
+            dbLogger.log(Level.SEVERE, "Unable to close DB statement: ", e);
+        }
+        try {
+            if (c != null) {
+                c.close();
+            }
+            dbLogger.log(Level.INFO, "Closing DB connection");
+        } catch (SQLException se) {
+            dbLogger.log(Level.SEVERE, "Unable to close DB connection: ", se);
+        }
+
     }
 }
-
-
-/*
-
-DROP TABLE IF EXISTS `drawings`;
-CREATE TABLE IF NOT EXISTS `drawings` (
-  `id` varchar(36) NOT NULL,
-  `name` varchar(255) DEFAULT NULL,
-  `creation_date` datetime NOT NULL,
-  `data` text,
-  `owner_id` varchar(36) NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `owner_id` (`owner_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-*/

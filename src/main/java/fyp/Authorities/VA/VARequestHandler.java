@@ -35,7 +35,7 @@ public class VARequestHandler extends Thread implements Runnable {
             this.vaCert = vaCert;
             this.vaKey = vaKey;
         } catch (IOException e) {
-            vaLogger.log(Level.SEVERE, "Unable to create data stream", e);
+            vaLogger.log(Level.SEVERE, "Unable to create data streaming", e);
         }
     }
 
@@ -52,7 +52,7 @@ public class VARequestHandler extends Thread implements Runnable {
             //X509CRLHolder crl = OCSPHandler.getCRLFromRepository(this.vaCert);
             OCSPResp ocspResponse = OCSPHandler.generateOCSPResponse(ocspRequest, this.vaCert, this.vaKey, crl); //Generate the response
             clientDataOutputStream.write(ocspResponse.getEncoded());
-            vaLogger.log(Level.INFO, "Response sent to : ", clientSslSocket.getInetAddress().getHostAddress());
+            vaLogger.log(Level.INFO, "Response sent to : {0} ", clientSslSocket.getInetAddress().getHostAddress());
 
         } catch (Exception e) {
             vaLogger.log(Level.SEVERE, "Socket error", e);

@@ -1,6 +1,5 @@
 package fyp.SharedServices;
 
-import fyp.Authorities.RA.HandshakeHandler;
 import fyp.UI.UserInput;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
@@ -98,14 +97,12 @@ public class CertificateHandler {
     public static X509Certificate requestCertificate(String caIP, int caPort, String deviceSpecs, KeyPair keyPair) {
         X509Certificate cert = null;
         try {
-
             String mac = deviceSpecs.split(";")[0];
             String subjectName = UserInput.normalizeMAC(mac);
             PKCS10CertificationRequest csr = CSRHandler.generateCSR(subjectName, keyPair);
-            System.out.println("CSR generated: " + csr.toString());
-            System.out.println("CSR generated: " + csr.getSubject() + " " + Arrays.toString(csr.getSignature()));
-            cert = new HandshakeHandler(caIP, caPort).requestCertificate(csr, deviceSpecs);
-            System.out.println("CertificateHandler.requestCertificate successfull");
+            System.out.println("CSR generated with Subject Name: " + csr.getSubject());
+            cert = new HandshakeHandler(caIP, caPort).requestCertificate(csr, subjectName);
+            System.out.println("Certificate Request successfull");
         } catch (NoSuchAlgorithmException | OperatorCreationException | IOException e) {
             CertHandlerLogger.log(Level.SEVERE, "Certificate Request Failed! ", e);
         }
@@ -114,7 +111,7 @@ public class CertificateHandler {
 
     public static void saveCertToFile(X509Certificate cert, String fileName) throws CertificateEncodingException, IOException {
         try {
-            FileUtils.writeByteArrayToFile(new File(fileName + ".cer"), cert.getEncoded());
+            FileUtils.writeByteArrayToFile(new File("./Certificates/" + fileName + ".cer"), cert.getEncoded());
         } catch (CertificateEncodingException e) {
             CertHandlerLogger.log(Level.SEVERE, "Unable to encode the cert!", e);
         } catch (IOException e) {
@@ -442,20 +439,19 @@ public class CertificateHandler {
             //kpGen = KeyPairGenerator.getInstance("RSA", "BC");
             //kpGen.initialize(1024);
 
-        } catch (NoSuchAlgorithmException | NoSuchProviderException| InvalidAlgorithmParameterException e) {
+        } catch (NoSuchAlgorithmException | NoSuchProviderException | InvalidAlgorithmParameterException e) {
             CertHandlerLogger.log(Level.SEVERE, "Unable to generate KeyPair", e);
         }
         return kpGen.generateKeyPair();
     }
-    /*
-    //TODO: change name to sth more accurate - do I need it at all?
-    public static void validateMyCertificate(X509Certificate userCert, X509Certificate issuerCert, X509Certificate ocspResponderCert) {
+
+    public static void validateCertificate(X509Certificate userCert, X509Certificate issuerCert, X509Certificate ocspResponderCert) {
         try {
 
-            OCSPHandler.checkPathDeviceCertificate(userCert, false, new PathCheckerOCSP(issuerCert, ocspResponderCert), new X509Certificate[]{}, issuerCert);
+            OCSPHandler.checkPathDeviceCertificate(userCert, false, new OCSPPathChecker(issuerCert, ocspResponderCert), new X509Certificate[]{}, issuerCert);
         } catch (Exception e) {
-            System.out.println("Cannot retrieve certificate from your KeyStore " + e);
+            CertHandlerLogger.log(Level.SEVERE, "Cannot retrieve certificate from KeyStore ", e);
+
         }
     }
-     */
 }

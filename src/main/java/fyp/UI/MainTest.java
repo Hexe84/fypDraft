@@ -7,6 +7,7 @@ import fyp.SharedServices.OCSPHandler;
 import fyp.SharedServices.LogFile;
 import fyp.SharedServices.CertificateHandler;
 import fyp.SharedServices.Configuration;
+import fyp.SharedServices.DatabaseHandler;
 import java.io.File;
 import java.io.IOException;
 import java.security.InvalidKeyException;
@@ -24,6 +25,7 @@ import java.security.NoSuchProviderException;
 import java.security.SignatureException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateParsingException;
+import java.sql.SQLException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.commons.codec.binary.Base64;
@@ -98,9 +100,8 @@ public class MainTest {
 
             KeyPair caKeyPair = CertificateHandler.generateKeyPair();
             // Generate rootCA-signed certificate for the Signing CA
-            //X509Certificate caCert = CertificateHandler.createSignedCertificateIntermediate(caName, caKeyPair, rootCert, rootKeyPair.getPrivate(), false, OCSP_URL);
             X509Certificate caCert = CertificateHandler.createSignedCertificateIntermediate(caKeyPair, caName, rootCert, rootKeyPair.getPrivate(), false, OCSP_URL);
-            // Store private Key and cert in the CA keystore
+            // Store private Key and cert in the CA keystore and Certificates directory
             KeyStoreHandler.storeCertificateEntry(caCertificateAlias, caCert, caKeyStorePath, caKeyStorePassword);
             KeyStoreHandler.storePrivateKeyEntry(caKeyAlias, caKeyPair.getPrivate(), caCert, caKeyStorePath, caKeyStorePassword);
             CertificateHandler.saveCertToFile(caCert, "CA");
@@ -115,10 +116,9 @@ public class MainTest {
             String raKeyAlias = Configuration.get("raKeyAlias");
 
             KeyPair raKeyPair = CertificateHandler.generateKeyPair();
-            // Generate rootCA-signed certificate for the RA
-            //X509Certificate raCert = CertificateHandler.createSignedCertificateIntermediate(raName, raKeyPair, rootCert, rootKeyPair.getPrivate(), false, OCSP_URL);
+            // Generate rootCA-signed certificate for the RA 
             X509Certificate raCert = CertificateHandler.createSignedCertificateIntermediate(raKeyPair, raName, rootCert, rootKeyPair.getPrivate(), false, OCSP_URL);
-            // Store private Key and cert in the RA keystore
+            // Store private Key and cert in the RA keystore and Certificates directory
             KeyStoreHandler.storeCertificateEntry(raCertificateAlias, raCert, raKeyStorePath, raKeyStorePassword);
             KeyStoreHandler.storePrivateKeyEntry(raKeyAlias, raKeyPair.getPrivate(), raCert, raKeyStorePath, raKeyStorePassword);
             CertificateHandler.saveCertToFile(raCert, "RA");
@@ -134,18 +134,22 @@ public class MainTest {
 
             KeyPair vaKeyPair = CertificateHandler.generateKeyPair();
             // Generate rootCA-signed certificate for the VA
-            //X509Certificate vaCert = CertificateHandler.createSignedCertificateIntermediate(vaName, vaKeyPair, rootCert, rootKeyPair.getPrivate(), true, OCSP_URL);
             X509Certificate vaCert = CertificateHandler.createSignedCertificateIntermediate(raKeyPair, vaName, rootCert, rootKeyPair.getPrivate(), true, OCSP_URL);
-            // Store private Key and cert in the VA keystore
+            // Store private Key and cert in the VA keystore and Certificates directory
             KeyStoreHandler.storeCertificateEntry(vaCertificateAlias, vaCert, vaKeyStorePath, vaKeyStorePassword);
             KeyStoreHandler.storePrivateKeyEntry(vaKeyAlias, vaKeyPair.getPrivate(), vaCert, vaKeyStorePath, vaKeyStorePassword);
             CertificateHandler.saveCertToFile(vaCert, "VA");
 
             // CRL SETUP
             X509CRLHolder crlRoot = OCSPHandler.createCRL(rootCert, rootKeyPair.getPrivate());
-            File crlFile = new File(Configuration.get("RevokedPath"));
-            FileUtils.writeByteArrayToFile(crlFile, crlRoot.getEncoded());
-
+            FileUtils.writeByteArrayToFile(new File(Configuration.get("RevokedPath")), crlRoot.getEncoded());
+            /*
+            try {
+                new DatabaseHandler().createCRLTable();
+            } catch (SQLException | ClassNotFoundException ex) {
+                MainTestLogger.log(Level.SEVERE, "Unable to create CRL database", ex);
+            }
+             */
             // TRUST STORES
             KeyStoreHandler.storeCertificateEntry(caCertificateAlias, caCert, rootTrustStorePath, rootTrustStorePassword);
             KeyStoreHandler.storeCertificateEntry(raCertificateAlias, raCert, caTrustStorePath, caTrustStorePassword);
@@ -163,27 +167,13 @@ public class MainTest {
 
             String deviceKsPath = Configuration.get("devicesKeystorePath");
             String deviceKsPass = Configuration.get("devicesKeystorePass");
-            KeyStoreHandler.getKeyStore(deviceKsPath,deviceKsPass);
+            KeyStoreHandler.getKeyStore(deviceKsPath, deviceKsPass);
 
-            /*
-            //create some example Device cert
-            String DevSpec = "23-4a-5f-19-7c-dd;Switch;LinkSys";
-            KeyPair deviceKeyPair = CertificateHandler.generateKeyPair();
-            SubjectPublicKeyInfo subPubKeyInfo = SubjectPublicKeyInfo.getInstance(deviceKeyPair.getPublic().getEncoded());
-            String macNormalized = DevSpec.split(";")[0].replaceAll("(\\.|\\,|\\:|\\-)", "");
-            System.out.println("macNormalized "+macNormalized);
-            X500Name devx500Name = new X500NameBuilder(BCStyle.INSTANCE).addRDN(BCStyle.CN, macNormalized).build();
-            System.out.println("devx500Name "+devx500Name);
-            //X500Name devName = new X500Name(i);
-            X509Certificate deviceCert = CertificateHandler.createDeviceCertificate(caKeyPair.getPrivate(), caCert, devx500Name, subPubKeyInfo, OCSP_URL);
-            CertificateHandler.saveCertToFile(deviceCert, "Device: " + macNormalized);
-             */
-            MainTestLogger.log(Level.INFO, "Main Test successful! ");
+            MainTestLogger.log(Level.INFO, "Authority Certificates created successfully! ");
 
         } catch (IOException | NoSuchAlgorithmException | OperatorCreationException | CertificateException | KeyStoreException | NoSuchProviderException e) {
 
             MainTestLogger.log(Level.SEVERE, "Ooops something went wrong in MainTest! ", e);
         }
     }
-
 }
