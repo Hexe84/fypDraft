@@ -42,9 +42,9 @@ import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
  *
  * @author Marta
  */
-public class MainTest {
+public class PKISetup {
 
-    private static Logger MainTestLogger = Logger.getLogger(MainTest.class.getName());
+    private static Logger MainTestLogger = Logger.getLogger(PKISetup.class.getName());
 //Class sets up the trust
 
     public static void main(String... args) throws CertificateParsingException, InvalidKeyException, SecurityException, SignatureException {
