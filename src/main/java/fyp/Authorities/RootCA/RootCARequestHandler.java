@@ -25,6 +25,7 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.sql.Date;
+import java.sql.SQLException;
 import java.util.Calendar;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -72,9 +73,19 @@ public class RootCARequestHandler extends Thread implements Runnable {
 
             byte[] requestData = CertificateHandler.readDataFromInputStream(clientDataInputStream);
             byte[] responseData;
-            String certSerialNumber = new String(requestData);
+            BigInteger certSerialNumber = new BigInteger(requestData);
             System.out.println(clientSslSocket.getInetAddress().getHostAddress()
                     + ": Certificate Revocation Request for certificate no: " + certSerialNumber);
+            if (new DatabaseHandler().isCertInCRL(certSerialNumber)) {
+
+                //X509Certificate deviceCertificate = getX509CertificateFromCertStore("Device " + subject);
+                String response = "Revocation Request Rejected - certificate with SN= " + certSerialNumber + " already revoked!";
+                clientDataOutputStream.write(response.getBytes());
+                clientDataInputStream.close();
+                System.out.println("Certificate already revoked! Revocation Request rejected for certificate "+certSerialNumber+" . Response sent to : "+clientSslSocket.getInetAddress().getHostAddress());
+                return;
+
+            }
             try {
                 String crlFileName = Configuration.get("RevokedPath");
                 X509CRLHolder crlHolder = new X509CRLHolder(new FileInputStream(crlFileName));
@@ -138,7 +149,7 @@ public class RootCARequestHandler extends Thread implements Runnable {
                     }*/
             //Revoke then finished__________________________________
 
-        } catch (Exception ex) {
+        } catch (IOException | SQLException | ClassNotFoundException ex) {
             RootRequestLogger.log(Level.SEVERE, null, ex);
         } finally {
             try {

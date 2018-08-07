@@ -78,7 +78,7 @@ public class CARequestHandler extends Thread implements Runnable {
                     response = certificate.getEncoded();
                     //TODO: make sure alias contains some cert specific info -like devices MAC or cert SN
                     try {
-                        KeyStoreHandler.storeCertificateEntry(deviceCertAlias, certificate, certStorePath, certStorePassword);
+                        KeyStoreHandler.storeCertificateEntry(deviceCertAlias + " " + certificate.getSubjectDN().toString().split(" ")[1], certificate, certStorePath, certStorePassword);
                     } catch (KeyStoreException | CertificateException | NoSuchAlgorithmException | IOException | NoSuchProviderException | OperatorCreationException e) {
                         CARequestLogger.log(Level.SEVERE, "Unable to save cert to the CertStore", e);
                     }

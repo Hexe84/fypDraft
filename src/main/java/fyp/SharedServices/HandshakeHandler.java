@@ -9,6 +9,7 @@ import javax.net.ssl.SSLSocketFactory;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.logging.Level;
@@ -48,14 +49,14 @@ public class HandshakeHandler {
             handshakeLogger.log(Level.INFO, String.format("Certificate %d successfully created for %s", cert.getSerialNumber(), hostInfo));
 
         } catch (Exception e) {
-            handshakeLogger.log(Level.SEVERE, String.format("%s : %s", hostInfo, new String(response)), e);
+            handshakeLogger.log(Level.SEVERE, String.format("%s : %s", hostInfo, new String(response)));
         }
         return cert;
 
     }
 
-    public String revokeCertificate(String deviceMAC) throws IOException {
-        dataOutputStream.write(deviceMAC.getBytes());
+    public String revokeCertificate(BigInteger serialNo) throws IOException {
+        dataOutputStream.write(serialNo.toByteArray());
         // device status
         byte[] response = CertificateHandler.readDataFromInputStream(dataInputStream);
         System.out.println("Data Input Stream response: " + new String(response));

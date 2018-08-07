@@ -22,11 +22,13 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import javax.security.auth.x500.X500Principal;
 import org.apache.commons.io.FileUtils;
 import org.bouncycastle.asn1.ASN1Encodable;
@@ -97,13 +99,17 @@ public class CertificateHandler {
     public static X509Certificate requestCertificate(String caIP, int caPort, String deviceSpecs, KeyPair keyPair) {
         X509Certificate cert = null;
         try {
-            String mac = deviceSpecs.split(";")[0];
-            String subjectName = UserInput.normalizeMAC(mac);
+
+            String subjectName = UserInput.normalizeMAC(deviceSpecs.split(";")[0]);
             PKCS10CertificationRequest csr = CSRHandler.generateCSR(subjectName, keyPair);
             System.out.println("CSR generated with Subject Name: " + csr.getSubject());
-            cert = new HandshakeHandler(caIP, caPort).requestCertificate(csr, subjectName);
-            System.out.println("Certificate Request successfull");
-        } catch (NoSuchAlgorithmException | OperatorCreationException | IOException e) {
+            try {
+                cert = new HandshakeHandler(caIP, caPort).requestCertificate(csr, subjectName);
+                
+            } catch (Exception e) {
+                System.out.println("CSR failed");
+            }
+        } catch (NoSuchAlgorithmException | OperatorCreationException e) {
             CertHandlerLogger.log(Level.SEVERE, "Certificate Request Failed! ", e);
         }
         return cert;
@@ -390,9 +396,22 @@ public class CertificateHandler {
         certificateGenerator.addExtension(Extension.subjectKeyIdentifier, false, subjectKeyId);
         certificateGenerator.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.dataEncipherment | KeyUsage.nonRepudiation | KeyUsage.keyEncipherment));
 
-        GeneralName gn = new GeneralName(GeneralName.uniformResourceIdentifier, new DERIA5String(ocspUrl));
-        AuthorityInformationAccess aic = new AuthorityInformationAccess(Extension.authorityInfoAccess, gn);
+        GeneralName gName = new GeneralName(GeneralName.uniformResourceIdentifier, new DERIA5String(ocspUrl));
+        AuthorityInformationAccess aic = new AuthorityInformationAccess(Extension.authorityInfoAccess, gName);
         certificateGenerator.addExtension(Extension.authorityInfoAccess, false, aic);
+
+        /*List<GeneralName> altNames = new ArrayList<>();
+        String manufacturer = "Toshiba";
+        String type = "Fridge";
+        altNames.add(new GeneralName(GeneralName.otherName, new DERIA5String(manufacturer)));
+        altNames.add(new GeneralName(GeneralName.otherName, new DERIA5String(type)));
+
+        GeneralNames subjectAltNames = GeneralNames.getInstance(new DERSequence((GeneralName[]) altNames.toArray(new GeneralName[]{})));
+        certificateGenerator.addExtension(Extension.targetInformation, false, subjectAltNames);
+         */
+        // GeneralName gN = new GeneralName(GeneralName.uniformResourceIdentifier, new DERIA5String(manufacturer));
+        //SubjectAlternativeName aic1 = new SubjectAlternativeName(Extension.subjectAlternativeName, gN);
+        // certificateGenerator.addExtension(Extension.subjectAlternativeName, false, aic1);
         /*// OSNA OID 1.3.6.1.4.1.44409
         
                 ASN1ObjectIdentifier asn1iod = new ASN1ObjectIdentifier("1.3.6.1.4.1.44409");

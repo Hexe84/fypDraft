@@ -1,12 +1,11 @@
 package fyp.SharedServices;
 
 import java.math.BigInteger;
+import java.security.cert.X509Certificate;
 import java.sql.*;
-import java.util.Locale;
+import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
 
 /**
  *
@@ -25,7 +24,6 @@ public class DatabaseHandler {
     static Connection conn;
     static Statement stmt;
 
-
     public DatabaseHandler() throws SQLException, ClassNotFoundException {
         LogFile.logFile(dbLogger);
 
@@ -33,46 +31,15 @@ public class DatabaseHandler {
         System.out.println("Connecting to database...");
         conn = DriverManager.getConnection(DB_URL, USER, PASS);
         stmt = conn.createStatement();
-        dbLogger.log(Level.INFO, "DB Connection strted");
-
-    }
-
-    public void createCertificatesTable() {
-
-        try {
-            //String sql = "DROP TABLE IF EXISTS CERTIFICATES"; // Delete table (in needed)
-            String sql = "CREATE TABLE CERTIFICATES "
-                    + "(Version VARCHAR(255), "
-                    //+ " SerialNumber BIGINT, " 
-                    + " SerialNumber VARBINARY(8), "
-                    + " SignatureAlgorithm VARCHAR(255), "
-                    + " SignatureHashAlgorithm VARCHAR(255), "
-                    + " Issuer VARCHAR(255), "
-                    + " NotBefore TIMESTAMP, "
-                    + " NotAfter TIMESTAMP, "
-                    + " SubjectName VARCHAR(255), "
-                    + " PublicKey VARBINARY(8), "
-                    //Extensions
-                    + " Extensions TEXT, "
-                    + " PRIMARY KEY ( SerialNumber ))";
-            stmt.executeUpdate(sql);
-
-        } catch (SQLException se) {
-            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
-        } catch (Exception e) {
-            dbLogger.log(Level.SEVERE, "Unable to process query", e);
-        } finally {
-            //finally block used to close resources
-            closeDatabase(conn, stmt);
-        }
+        dbLogger.log(Level.INFO, "DB Connection started");
 
     }
 
     public void createCRLTable() {
 
         try {
-            //String sql = "DROP TABLE IF EXISTS CRL"; // Delete table (in needed)
-           String sql = "CREATE TABLE IF NOT EXISTS CRL "
+            //String sql = "DROP TABLE IF EXISTS CRL"; // Delete table (if needed)
+            String sql = "CREATE TABLE IF NOT EXISTS CRL "
                     + "(SerialNumber BIGINT, "
                     + " RevocationDate DATE, "
                     + " Reason VARCHAR(255), "
@@ -83,6 +50,28 @@ public class DatabaseHandler {
 
             dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
         } catch (Exception e) {
+            dbLogger.log(Level.SEVERE, "Unable to process CREATE TABLE query", e);
+        } finally {
+            //close resources
+            closeDatabase(conn, stmt);
+        }
+    }
+
+    public void createCertificatesTable() {
+
+        try {
+            //String sql = "DROP TABLE IF EXISTS CRL"; // Delete table (if needed)
+            String sql = "CREATE TABLE IF NOT EXISTS CERTIFICATES "
+                    + " (SerialNumber BIGINT, "
+                    + " SubjectName VARCHAR(255), "
+                    + " Cert LONGBLOB, "
+                    + " PRIMARY KEY ( SerialNumber ))";
+            stmt.executeUpdate(sql);
+            dbLogger.log(Level.INFO, "Certificates database created successfully");
+        } catch (SQLException se) {
+
+            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
+        } catch (Exception e) {
             dbLogger.log(Level.SEVERE, "Unable to process query", e);
         } finally {
             //close resources
@@ -90,10 +79,23 @@ public class DatabaseHandler {
         }
     }
 
-    public void saveCertToDB() {
+    /* public void saveCertToDB(X509Certificate cert) {
 
+        //(Version, SerialNumber, SignatureAlgorithm, SignatureHashAlgorithm, Issuer, NotBefore, NotAfter, SubjectName, PublicKey, BasicConstraints, KeyUsage, AuthorityKeyIdentifier, SubjectKeyIdentifier, AuthorityInformationAccess )
         try {
-            String sql = "INSERT INTO CERTIFICATES ";
+            System.out.println("__________________DATABASE PARAMS_______________________1)" + cert.getVersion() + ", 2)'"
+                    + cert.getSerialNumber() + ", 3)'" + cert.getSigAlgName() + ",4) "
+                    + cert.getIssuerDN() + ", 5)'" + cert.getNotBefore() + "', 6)'"
+                    + cert.getNotAfter() + ", 7)" + cert.getSubjectDN() + ", 8)"
+                    + cert.getPublicKey().toString() + ", 9)" + cert.getBasicConstraints() + ", 10)" + Arrays.toString(cert.getKeyUsage()));
+
+            String sql = "INSERT INTO CERTIFICATES VALUES ('" + cert.getVersion() + "', "
+                    + cert.getSerialNumber() + ", '" + cert.getSigAlgName() + "', '"
+                    //+ cert.getIssuerDN() + ", '" + new java.sql.Date(new SimpleDateFormat("yyyy-MM-dd").format(cert.getNotBefore())) + "', '"
+                    + cert.getIssuerDN() + "', '" + new java.sql.Date(cert.getNotBefore().getTime()) + "', '"
+                    + new java.sql.Date(cert.getNotAfter().getTime()) + "', '" + cert.getSubjectDN() + "', "
+                    + cert.getPublicKey().toString() + ", '" + cert.getBasicConstraints() + "', '" + Arrays.toString(cert.getKeyUsage()) + "')";
+
             stmt.executeUpdate(sql);
         } catch (SQLException se) {
             dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
@@ -104,7 +106,7 @@ public class DatabaseHandler {
             closeDatabase(conn, stmt);
         }
     }
-
+     */
     public static void updateCRLtoDB(BigInteger serialNo, Date revDate, String reason) {
 
         try {
@@ -125,17 +127,39 @@ public class DatabaseHandler {
     public static boolean isCertInCRL(BigInteger serialNo) {
         Boolean check = null;
         try {
-            String sql = "SELECT * FROM CRL "
-                    + "WHERE SerialNumber = " + serialNo;
+            String sql = "SELECT * FROM CRL WHERE SerialNumber = " + serialNo;
             ResultSet rs = stmt.executeQuery(sql);
-
-            if (rs != null) {
-                System.out.println("Serial Number in CRL. Certificate revoked!");
-                check = true;
-            } else {
+            if (!rs.isBeforeFirst()) {
+                dbLogger.log(Level.INFO, "Serial Number not in CRL Database.");
                 check = false;
+            } else {
+                dbLogger.log(Level.INFO, "Serial Number in CRL Database. Certificate revoked!");
+                check = true;
             }
+        } catch (SQLException se) {
+            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
+        } catch (Exception e) {
+            dbLogger.log(Level.SEVERE, "Unable to process query", e);
+        } finally {
+            //close resources
+            closeDatabase(conn, stmt);
+        }
+        return check;
+    }
 
+    public static boolean isCertInCertDB(String subjectName) {
+        Boolean check = null;
+        try {
+            String sql = "SELECT * FROM CERTIFICATES "
+                    + "WHERE SubjectName = '" + subjectName + "'";
+            ResultSet rs = stmt.executeQuery(sql);
+            if (!rs.isBeforeFirst()) {
+                dbLogger.log(Level.INFO, "Certificate not in Database.");
+                check = false;
+            } else {
+                dbLogger.log(Level.INFO, "Certificate in Database.");
+                check = true;
+            }
         } catch (SQLException se) {
             dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
         } catch (Exception e) {
@@ -165,5 +189,45 @@ public class DatabaseHandler {
             dbLogger.log(Level.SEVERE, "Unable to close DB connection: ", se);
         }
 
+    }
+
+    //TODO: for testing only
+    public void createCertsTable() {
+
+        try {
+            //String sql = "DROP TABLE IF EXISTS CERTIFICATES"; // Delete table (in needed)
+            String sql = "CREATE TABLE IF NOT EXISTS CERTS "
+                    + " SerialNumber BIGINT, "
+                    + " Cert LONGBLOB, "
+                    + " PRIMARY KEY ( SerialNumber ))";
+            stmt.executeUpdate(sql);
+
+        } catch (SQLException se) {
+            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
+        } catch (Exception e) {
+            dbLogger.log(Level.SEVERE, "Unable to process query", e);
+        } finally {
+            //finally block used to close resources
+            closeDatabase(conn, stmt);
+        }
+
+    }
+
+    public void saveCertToCertDB(X509Certificate cert) {
+
+        //(Version, SerialNumber, SignatureAlgorithm, SignatureHashAlgorithm, Issuer, NotBefore, NotAfter, SubjectName, PublicKey, BasicConstraints, KeyUsage, AuthorityKeyIdentifier, SubjectKeyIdentifier, AuthorityInformationAccess )
+        //cert file needs to be in byte[] form so cert.getEncoded()
+        try {
+            String sql = "INSERT INTO CERTIFICATES VALUES (" + cert.getSerialNumber() + ", '" + cert.getSubjectDN() + "', '" + Arrays.toString(cert.getEncoded()) + "')";
+
+            stmt.executeUpdate(sql);
+        } catch (SQLException se) {
+            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
+        } catch (Exception e) {
+            dbLogger.log(Level.SEVERE, "Unable to process query", e);
+        } finally {
+            //close resources
+            closeDatabase(conn, stmt);
+        }
     }
 }

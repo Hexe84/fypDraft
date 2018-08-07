@@ -2,12 +2,10 @@
 rootPort = 8001
 rootIP = localhost
 rootAlias = Root Certification Authority
-
 rootKeystorePath = Keystore/root_ca.keystore
 rootKeystorePass = password
 rootCertAlias = RootCA_Certificate
 rootKeyAlias = RootCA_PrivateKey
-
 rootTruststorePath = Truststore/root_ca.truststore
 #rootTruststorePath = Truststore/root_ca.p12
 rootTruststorePass = password
@@ -16,12 +14,10 @@ rootTruststorePass = password
 caPort = 8002
 caIP = localhost
 caAlias = Signing Certification Authority
-
 caKeystorePath = Keystore/ca.keystore
 caKeystorePass = password
 caCertAlias = CA_Certificate
 caKeyAlias = CA_PrivateKey
-
 caTruststorePath = Truststore/ca.truststore
 #caTruststorePath = Truststore/ca.p12
 caTruststorePass = password
@@ -30,12 +26,10 @@ caTruststorePass = password
 raPort = 8003
 raIP = localhost
 raAlias = Registration Authority
-
 raKeystorePath = Keystore/ra.keystore
 raKeystorePass = password
 raCertAlias = RA_Certificate
 raKeyAlias = RA_PrivateKey
-
 raTruststorePath = Truststore/ra.truststore
 #raTruststorePath = Truststore/ra.p12
 raTruststorePass = password
@@ -45,12 +39,10 @@ raTruststorePass = password
 vaPort = 8004
 vaIP = localhost
 vaAlias = Validation Authority
-
 vaKeystorePath = Keystore/va.keystore
 vaKeystorePass = password
 vaCertAlias = VA_Certificate
 vaKeyAlias = VA_PrivateKey
-
 vaTruststorePath = Truststore/va.truststore
 vaTruststorePass = password
 
@@ -70,7 +62,7 @@ devicesKeyAlias=Device_Private
 # _____________ CRL ________________
 RevokedPath = CRL/CRL_list.crl
 
-#_____________certStore_______________
+#_____________CertStore_______________
 certstorePath = CertStore/certificates.store
 certstorePass = password
 

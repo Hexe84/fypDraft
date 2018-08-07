@@ -2,6 +2,8 @@ package fyp.Authorities.RA;
 
 import fyp.SharedServices.CertificateHandler;
 import fyp.SharedServices.Configuration;
+import fyp.SharedServices.DatabaseHandler;
+import fyp.SharedServices.KeyStoreHandler;
 import fyp.UI.UserInput;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -54,66 +56,67 @@ public class RARequestHandler extends Thread implements Runnable {
             PKCS10CertificationRequest csr = new PKCS10CertificationRequest(requestBytes);
             String csrSubjectName = csr.getSubject().toString();
 
+            //try {
+            if (!csrSubjectName.equals("CN=Device " + subject)) {
+                String response = "Subject Name on CSR: " + csrSubjectName
+                        + " doesn't match the device's MAC: " + subject;
+                clientDataOutputStream.write(response.getBytes());
+                clientDataInputStream.close();
+                RARequestLogger.log(Level.WARNING, "CSR for device {0} rejected."
+                        + " CSR data invalid! Response sent to : {1}",
+                        new Object[]{subject, clientSslSocket.getInetAddress().getHostAddress()});
+                return;
+            } 
+           
+            else if (new DatabaseHandler().isCertInCertDB("CN=Device " + subject)) {
+
+                //X509Certificate deviceCertificate = getX509CertificateFromCertStore("Device " + subject);
+                String response = "CSR Rejected - certificate already exists for Device: " + subject;
+                clientDataOutputStream.write(response.getBytes());
+                clientDataInputStream.close();
+                RARequestLogger.log(Level.INFO, "Certificate Exists. CSR rejected for device:{0}. Response sent to : {1}", new Object[]{subject, clientSslSocket.getInetAddress().getHostAddress()});
+                return;
+
+            }
+           
             try {
-                //case when certificate already exists
-                /*if (getX509CertificateFromCertStore(subject) != null) {
 
-                    deviceCertificate = getX509CertificateFromCertStore(subject);
-                    String response = "CSR Rejected - certificate already exists for: " + deviceCertificate.getSubjectDN().getName();
-                    clientDataOutputStream.write(response.getBytes());
-                    clientDataInputStream.close();
-                    System.out.println("CSR rejected for device:" + deviceCertificate.getSubjectDN().getName() + ". Response sent to : " + clientSslSocket.getInetAddress().getHostAddress());
-                    return;
-                    
-                } else {*/
-                if (!csrSubjectName.equals("CN=Device " + subject)) {
-                    String response = "Subject Name on CSR: " + csrSubjectName
-                            + " doesn't match the device's MAC: " + subject;
-                    clientDataOutputStream.write(response.getBytes());
-                    clientDataInputStream.close();
-                    RARequestLogger.log(Level.WARNING, "CSR for device {0} rejected."
-                            + " CSR data invalid! Response sent to : {1}",
-                            new Object[]{subject, clientSslSocket.getInetAddress().getHostAddress()});
-                    return;
-                }
+                String keyStorePath = Configuration.get("raKeystorePath");
+                String keyStorePassword = Configuration.get("raKeystorePass");
+                System.setProperty("javax.net.ssl.keyStore", keyStorePath);
+                System.setProperty("javax.net.ssl.keyStorePassword", keyStorePassword);
+
+                SSLSocketFactory f = (SSLSocketFactory) SSLSocketFactory.getDefault();
+                SSLSocket c = (SSLSocket) f.createSocket(caIP, caPORT);
+                c.startHandshake();
+                DataOutputStream write = new DataOutputStream(c.getOutputStream());
+                DataInputStream read = new DataInputStream(c.getInputStream());
+                write.write(requestBytes);
+                byte[] caResponse = CertificateHandler.readDataFromInputStream(read);
+                c.close();
+
+                RARequestLogger.log(Level.INFO, "CSR accepted for device {0}. "
+                        + "CSR sent to Signing Certificate Authority : {1}:{2}",
+                        new Object[]{subject, caIP, caPORT});
                 try {
+                    X509Certificate cert = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(new ByteArrayInputStream(caResponse));
+                    System.out.println("Certificate for " + cert.getSubjectDN() + " : serialNumber=" + cert.getSerialNumber() + " created successfully!");
 
-                    String keyStorePath = Configuration.get("raKeystorePath");
-                    String keyStorePassword = Configuration.get("raKeystorePass");
-                    System.setProperty("javax.net.ssl.keyStore", keyStorePath);
-                    System.setProperty("javax.net.ssl.keyStorePassword", keyStorePassword);
-
-                    SSLSocketFactory f = (SSLSocketFactory) SSLSocketFactory.getDefault();
-                    SSLSocket c = (SSLSocket) f.createSocket(caIP, caPORT);
-                    c.startHandshake();
-                    DataOutputStream write = new DataOutputStream(c.getOutputStream());
-                    DataInputStream read = new DataInputStream(c.getInputStream());
-                    write.write(requestBytes);
-                    byte[] caResponse = CertificateHandler.readDataFromInputStream(read);
-                    c.close();
-
-                    RARequestLogger.log(Level.INFO, "CSR accepted for device {0}. "
-                            + "CSR sent to Signing Certificate Authority : {1}:{2}",
-                            new Object[]{subject, caIP, caPORT});
-                    try {
-                        X509Certificate cert = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(new ByteArrayInputStream(caResponse));
-                        System.out.println("Certificate for " + cert.getSubjectDN() + " : serialNumber=" + cert.getSerialNumber()+ " created successfully!");
-
-                    } catch (Exception es) {
-                        RARequestLogger.log(Level.SEVERE, "Unable to retrieve cert from byte array", es);
-                    }
-
-                    clientDataOutputStream.write(caResponse);
-                    RARequestLogger.log(Level.INFO, "Response sent to : {0}", clientSslSocket.getInetAddress().getHostAddress());
-                    System.out.println("--------------- RA Request successful! ------------------");
-
-                } catch (IOException ex1) {
-                    RARequestLogger.log(Level.SEVERE, "Error in RA request", ex1);
+                } catch (Exception es) {
+                    RARequestLogger.log(Level.SEVERE, "Unable to retrieve cert from byte array", es);
                 }
-                //}//-----end of if cert already exists
-            } catch (Exception e) {
-                RARequestLogger.log(Level.SEVERE, "Some exception e in RARequestHandler", e);
-                /*
+
+                clientDataOutputStream.write(caResponse);
+                RARequestLogger.log(Level.INFO, "Response sent to : {0}", clientSslSocket.getInetAddress().getHostAddress());
+                System.out.println("--------------- RA Request successful! ------------------");
+
+            } catch (IOException ex1) {
+                RARequestLogger.log(Level.SEVERE, "Error in RA request", ex1);
+            }
+            //}//-----end of if cert already exists
+            // } catch (Exception e) {
+            //   RARequestLogger.log(Level.SEVERE, "Some exception e in RARequestHandler", e);
+            /*
                 if (deviceCertificate != null) {
 
                     // if device cert exists but something is wrong then revoke it
@@ -131,8 +134,8 @@ public class RARequestHandler extends Thread implements Runnable {
                     return;
 
                 }
-                 */
-            }
+             */
+            //}
 
         } catch (Exception ex) {
             RARequestLogger.log(Level.SEVERE, "Error in RA request handler", ex);
@@ -145,29 +148,25 @@ public class RARequestHandler extends Thread implements Runnable {
             }
         }
     }
-//TODO: not gonna work
 
-    /*  
-    private X509Certificate getX509CertificateFromRepository(String s) throws IOException {
-
-        String httpRepositoryURL = "http://" + Configuration.get("IP_REPOSITORY") + ":" + Configuration.get("PORT_REPOSITORY_HTTP") + "/get?CN=";
-        URL oracle = new URL(httpRepositoryURL + s);
-        byte[] bytes = IOUtils.toByteArray(oracle.openStream());
-        try {
-            return (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(new ByteArrayInputStream(bytes));
-        } catch (Exception e) {
-            RARequestLogger.log(Level.SEVERE, "Unable to get cert from byte[] object", e);
-            return null;
-        }
-
-    }
-     */
     //JUST TESTING method atm
     //TODO: not fully right change the filePath to corresponding one
     private X509Certificate getX509CertificateFromCertStore(String s) throws IOException {
-        String filePath = "CertStore/" + s + ".cer";
+        //String filePath = ".\\Certificates\\" + s + ".cer";
+        String deviceKsPath = Configuration.get("devicesKeystorePath");
+        String deviceKsPass = Configuration.get("devicesKeystorePass");
+        System.out.println("______________________________________________________CERTIFICATE ALIAS: "+s);
+        try {
+            System.out.println("======================================="+KeyStoreHandler.getCertificate(s, deviceKsPath, deviceKsPass).getSubjectDN());
+            return KeyStoreHandler.getCertificate(s, deviceKsPath, deviceKsPass);
 
-        if (new File(filePath).isFile()) {
+        } catch (Exception ex) {
+            //RARequestLogger.log(Level.INFO, "Cert doesn't exist");
+            RARequestLogger.log(Level.SEVERE, "Unable to get Cert from Device Keystore", ex);
+            return null;
+        }
+        /*
+        if (new File(filePath).exists()) {
             FileInputStream fis = new FileInputStream(filePath);
             BufferedInputStream bis = new BufferedInputStream(fis);
             RARequestLogger.log(Level.INFO, "Certificate exists for: {0}", s);
@@ -181,6 +180,6 @@ public class RARequestHandler extends Thread implements Runnable {
         } else {
             RARequestLogger.log(Level.SEVERE, "Cert doesn't exist");
             return null;
-        }
+        }*/
     }
 }

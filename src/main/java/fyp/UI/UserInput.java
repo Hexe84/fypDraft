@@ -4,6 +4,7 @@ import fyp.SharedServices.HandshakeHandler;
 import fyp.SharedServices.LogFile;
 import fyp.SharedServices.CertificateHandler;
 import fyp.SharedServices.Configuration;
+import fyp.SharedServices.DatabaseHandler;
 import fyp.SharedServices.KeyStoreHandler;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -24,6 +25,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.OperatorCreationException;
 import java.awt.Desktop;
 import java.io.File;
+import java.math.BigInteger;
 
 /**
  *
@@ -108,22 +110,22 @@ public class UserInput {
             // Establish the trust by putting authority certs into devices Truststore 
             String rootCertPath = ".\\Certificates\\Root_CA.cer";
             getCertificateFromPath(rootCertPath, rootCertAlias);
-            UserInputLogger.log(Level.INFO, " --------- Root CA Certificate Retrieved Successfully: {0}", rootCertPath);
+            UserInputLogger.log(Level.INFO, " Root CA Cert Successfully Imported!");
 
             String caCertPath = ".\\Certificates\\CA.cer";
             getCertificateFromPath(caCertPath, caCertAlias);
-            UserInputLogger.log(Level.INFO, " --------- CA Certificate Retrieved Successfully: {0}", caCertPath);
+            UserInputLogger.log(Level.INFO, " Signing CA Cert Successfully Imported!");
 
             String raCertPath = ".\\Certificates\\RA.cer";
             getCertificateFromPath(raCertPath, raCertAlias);
-            UserInputLogger.log(Level.INFO, " --------- RA Certificate Retrieved Successfully: {0}", raCertPath);
+            UserInputLogger.log(Level.INFO, " RA Cert Successfully Imported!");
 
             String vaCertPath = ".\\Certificates\\VA.cer";
             getCertificateFromPath(vaCertPath, vaCertAlias);
-            UserInputLogger.log(Level.INFO, " --------- VA Certificate Retrieved Successfully: {0}", vaCertPath);
+            UserInputLogger.log(Level.INFO, "VA Cert Successfully Imported!");
 
         } catch (IOException | KeyStoreException | CertificateException | NoSuchAlgorithmException | NoSuchProviderException | OperatorCreationException e) {
-            UserInputLogger.log(Level.SEVERE, "Unable to get trusted authority certificates!", e);
+            UserInputLogger.log(Level.SEVERE, "Unable to import trusted authority certificates!", e);
         }
 
         try {
@@ -244,27 +246,48 @@ public class UserInput {
                 //Request new Cert
                 case 1:
                     String deviceSpec = readDeviceSpecs(MAC);
-
+                    /*      try {
+                        X509Certificate DevC = KeyStoreHandler.getCertificate(deviceCert + normMAC, deviceKsPath, deviceKsPass);
+                        UserInputLogger.log(Level.INFO, "Certificate for {0} already exists", DevC.getSubjectDN());
+                        int uOption = manageCertMenu();
+                        manageCertHandler(uOption, normMAC);
+                    } catch (Exception e) {
+                     */
                     KeyPair keyPair = CertificateHandler.generateKeyPair();
+                    try {
+                        devCert = CertificateHandler.requestCertificate(raIP, raPORT, deviceSpec, keyPair);
+                    } catch (Exception e) {
+                        UserInputLogger.log(Level.INFO, "#######################################################################");//TODO: delete this
+                        break;
+                    }
 
-                    devCert = CertificateHandler.requestCertificate(raIP, raPORT, deviceSpec, keyPair);
-                    UserInputLogger.log(Level.INFO, "Certificate for {0} successfully created", devCert.getSubjectDN());
                     if (devCert != null) {
+                        UserInputLogger.log(Level.INFO, "Certificate for {0} successfully created", devCert.getSubjectDN());
                         //write to the local storage / external db
                         KeyStoreHandler.storeCertificateEntry(deviceCert + normMAC, devCert, deviceKsPath, deviceKsPass);
                         KeyStoreHandler.storePrivateKeyEntry(deviceKey + normMAC, keyPair.getPrivate(), devCert, deviceKsPath, deviceKsPass);
                         CertificateHandler.saveCertToFile(devCert, "Device " + normMAC);
+                        //new DatabaseHandler().saveCertToDB(devCert);
+                        new DatabaseHandler().saveCertToCertDB(devCert);
                         UserInputLogger.log(Level.INFO, "Certificate for {0} saved to file and Keystore", devCert.getSubjectDN());
                     }
                     int uOption = manageCertMenu();
                     manageCertHandler(uOption, normMAC);
+                    //}
                     //return ;
                     break;
 
                 // Manage existing cert
                 case 2:
-                    userOption = manageCertMenu();
-                    manageCertHandler(userOption, normMAC);
+
+                    try {
+                        KeyStoreHandler.getCertificate(deviceCert + normMAC, deviceKsPath, deviceKsPass);
+                        int uOp = manageCertMenu();
+                        manageCertHandler(uOp, normMAC);
+                    } catch (Exception e) {
+                        UserInputLogger.log(Level.INFO, "Certificate for device {0} doesn't exist. Request it first!", MAC);
+                        mainMenu(MAC);
+                    }
                     break;
 
                 default:
@@ -369,10 +392,14 @@ public class UserInput {
                     break;
                 case 3:
                     //3-Revoke cert
+                    devCert = KeyStoreHandler.getCertificate(deviceCert + normalizedMAC, deviceKsPath, deviceKsPass);
+                    BigInteger serialNo = devCert.getSerialNumber();
+
                     String rootIP = Configuration.get("rootIP");
                     int rootPort = Integer.parseInt(Configuration.get("rootPort"));
+
                     try {
-                        new HandshakeHandler(rootIP, rootPort).revokeCertificate(normalizedMAC);
+                        new HandshakeHandler(rootIP, rootPort).revokeCertificate(serialNo);
                     } catch (Exception e) {
                         UserInputLogger.log(Level.SEVERE, "Certification Revocation Failed !", e);
                     }

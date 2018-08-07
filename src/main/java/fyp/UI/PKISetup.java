@@ -143,13 +143,13 @@ public class PKISetup {
             // CRL SETUP
             X509CRLHolder crlRoot = OCSPHandler.createCRL(rootCert, rootKeyPair.getPrivate());
             FileUtils.writeByteArrayToFile(new File(Configuration.get("RevokedPath")), crlRoot.getEncoded());
-            /*
+
             try {
                 new DatabaseHandler().createCRLTable();
             } catch (SQLException | ClassNotFoundException ex) {
                 MainTestLogger.log(Level.SEVERE, "Unable to create CRL database", ex);
             }
-             */
+
             // TRUST STORES
             KeyStoreHandler.storeCertificateEntry(caCertificateAlias, caCert, rootTrustStorePath, rootTrustStorePassword);
             KeyStoreHandler.storeCertificateEntry(raCertificateAlias, raCert, caTrustStorePath, caTrustStorePassword);
@@ -169,6 +169,11 @@ public class PKISetup {
             String deviceKsPass = Configuration.get("devicesKeystorePass");
             KeyStoreHandler.getKeyStore(deviceKsPath, deviceKsPass);
 
+            try {
+                new DatabaseHandler().createCertificatesTable();
+            } catch (SQLException | ClassNotFoundException ex) {
+                MainTestLogger.log(Level.SEVERE, "Unable to create Certificates database", ex);
+            }
             MainTestLogger.log(Level.INFO, "Authority Certificates created successfully! ");
 
         } catch (IOException | NoSuchAlgorithmException | OperatorCreationException | CertificateException | KeyStoreException | NoSuchProviderException e) {
