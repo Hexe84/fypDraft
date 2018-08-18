@@ -11,7 +11,6 @@ import java.util.logging.Logger;
  *
  * @author Marta
  *
- * just a draft code to check if I can connect to the db
  */
 public class DatabaseHandler {
 
@@ -47,8 +46,7 @@ public class DatabaseHandler {
             stmt.executeUpdate(sql);
             dbLogger.log(Level.INFO, "CRL database created successfully");
         } catch (SQLException se) {
-
-            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
+            dbLogger.log(Level.SEVERE, "SQL Exception in creating CRL db: ", se);
         } catch (Exception e) {
             dbLogger.log(Level.SEVERE, "Unable to process CREATE TABLE query", e);
         } finally {
@@ -69,8 +67,7 @@ public class DatabaseHandler {
             stmt.executeUpdate(sql);
             dbLogger.log(Level.INFO, "Certificates database created successfully");
         } catch (SQLException se) {
-
-            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
+            dbLogger.log(Level.SEVERE, "SQL Exception in creating Certificates db: ", se);
         } catch (Exception e) {
             dbLogger.log(Level.SEVERE, "Unable to process query", e);
         } finally {
@@ -79,34 +76,6 @@ public class DatabaseHandler {
         }
     }
 
-    /* public void saveCertToDB(X509Certificate cert) {
-
-        //(Version, SerialNumber, SignatureAlgorithm, SignatureHashAlgorithm, Issuer, NotBefore, NotAfter, SubjectName, PublicKey, BasicConstraints, KeyUsage, AuthorityKeyIdentifier, SubjectKeyIdentifier, AuthorityInformationAccess )
-        try {
-            System.out.println("__________________DATABASE PARAMS_______________________1)" + cert.getVersion() + ", 2)'"
-                    + cert.getSerialNumber() + ", 3)'" + cert.getSigAlgName() + ",4) "
-                    + cert.getIssuerDN() + ", 5)'" + cert.getNotBefore() + "', 6)'"
-                    + cert.getNotAfter() + ", 7)" + cert.getSubjectDN() + ", 8)"
-                    + cert.getPublicKey().toString() + ", 9)" + cert.getBasicConstraints() + ", 10)" + Arrays.toString(cert.getKeyUsage()));
-
-            String sql = "INSERT INTO CERTIFICATES VALUES ('" + cert.getVersion() + "', "
-                    + cert.getSerialNumber() + ", '" + cert.getSigAlgName() + "', '"
-                    //+ cert.getIssuerDN() + ", '" + new java.sql.Date(new SimpleDateFormat("yyyy-MM-dd").format(cert.getNotBefore())) + "', '"
-                    + cert.getIssuerDN() + "', '" + new java.sql.Date(cert.getNotBefore().getTime()) + "', '"
-                    + new java.sql.Date(cert.getNotAfter().getTime()) + "', '" + cert.getSubjectDN() + "', "
-                    + cert.getPublicKey().toString() + ", '" + cert.getBasicConstraints() + "', '" + Arrays.toString(cert.getKeyUsage()) + "')";
-
-            stmt.executeUpdate(sql);
-        } catch (SQLException se) {
-            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
-        } catch (Exception e) {
-            dbLogger.log(Level.SEVERE, "Unable to process query", e);
-        } finally {
-            //close resources
-            closeDatabase(conn, stmt);
-        }
-    }
-     */
     public static void updateCRLtoDB(BigInteger serialNo, Date revDate, String reason) {
 
         try {
@@ -170,7 +139,23 @@ public class DatabaseHandler {
         }
         return check;
     }
-
+    
+    public void saveCertToCertDB(X509Certificate cert) {
+        
+        //cert file needs to be in byte[] form so cert.getEncoded()
+        try {
+            String sql = "INSERT INTO CERTIFICATES VALUES (" + cert.getSerialNumber() + ", '" + cert.getSubjectDN() + "', '" + Arrays.toString(cert.getEncoded()) + "')";
+            stmt.executeUpdate(sql);
+        } catch (SQLException se) {
+            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
+        } catch (Exception e) {
+            dbLogger.log(Level.SEVERE, "Unable to process query", e);
+        } finally {
+            //close resources
+            closeDatabase(conn, stmt);
+        }
+    }
+    
     private static void closeDatabase(Connection c, Statement s) {
 
         try {
@@ -189,45 +174,5 @@ public class DatabaseHandler {
             dbLogger.log(Level.SEVERE, "Unable to close DB connection: ", se);
         }
 
-    }
-
-    //TODO: for testing only
-    public void createCertsTable() {
-
-        try {
-            //String sql = "DROP TABLE IF EXISTS CERTIFICATES"; // Delete table (in needed)
-            String sql = "CREATE TABLE IF NOT EXISTS CERTS "
-                    + " SerialNumber BIGINT, "
-                    + " Cert LONGBLOB, "
-                    + " PRIMARY KEY ( SerialNumber ))";
-            stmt.executeUpdate(sql);
-
-        } catch (SQLException se) {
-            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
-        } catch (Exception e) {
-            dbLogger.log(Level.SEVERE, "Unable to process query", e);
-        } finally {
-            //finally block used to close resources
-            closeDatabase(conn, stmt);
-        }
-
-    }
-
-    public void saveCertToCertDB(X509Certificate cert) {
-
-        //(Version, SerialNumber, SignatureAlgorithm, SignatureHashAlgorithm, Issuer, NotBefore, NotAfter, SubjectName, PublicKey, BasicConstraints, KeyUsage, AuthorityKeyIdentifier, SubjectKeyIdentifier, AuthorityInformationAccess )
-        //cert file needs to be in byte[] form so cert.getEncoded()
-        try {
-            String sql = "INSERT INTO CERTIFICATES VALUES (" + cert.getSerialNumber() + ", '" + cert.getSubjectDN() + "', '" + Arrays.toString(cert.getEncoded()) + "')";
-
-            stmt.executeUpdate(sql);
-        } catch (SQLException se) {
-            dbLogger.log(Level.SEVERE, "SQL Exception: ", se);
-        } catch (Exception e) {
-            dbLogger.log(Level.SEVERE, "Unable to process query", e);
-        } finally {
-            //close resources
-            closeDatabase(conn, stmt);
-        }
     }
 }

@@ -42,15 +42,13 @@ public class VARequestHandler extends Thread implements Runnable {
     @Override
     public void run() {
         try {
+            System.out.println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+            System.out.println(clientDataInputStream.toString());
             byte[] request = CertificateHandler.readDataFromInputStream(clientDataInputStream);
-            // Recreate the OCSPReq from the requestData
+            // OCSPReq from the requestData
             OCSPReq ocspRequest = new OCSPReq(request);
-            // retrieve latest crl from location specified in root certificate
             vaLogger.log(Level.INFO, "OCSP Request created for Serial Number : {0}", ocspRequest.getRequestList()[0].getCertID().getSerialNumber());
-            final String crlUrl = CertificateHandler.crlURLFromCert(this.vaCert);
-            X509CRLHolder crl = new X509CRLHolder(IOUtils.toByteArray(new URL(crlUrl).openStream()));
-            //X509CRLHolder crl = OCSPHandler.getCRLFromRepository(this.vaCert);
-            OCSPResp ocspResponse = OCSPHandler.generateOCSPResponse(ocspRequest, this.vaCert, this.vaKey, crl); //Generate the response
+            OCSPResp ocspResponse = OCSPHandler.generateOCSPResponse(ocspRequest, this.vaCert, this.vaKey); //Generate the response
             clientDataOutputStream.write(ocspResponse.getEncoded());
             vaLogger.log(Level.INFO, "Response sent to : {0} ", clientSslSocket.getInetAddress().getHostAddress());
 
@@ -62,7 +60,5 @@ public class VARequestHandler extends Thread implements Runnable {
         } catch (IOException e) {
             vaLogger.log(Level.SEVERE, "Unable to close socket", e);
         }
-
     }
-
 }

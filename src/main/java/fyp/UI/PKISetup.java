@@ -1,7 +1,5 @@
 package fyp.UI;
 
-//import java.io.File;
-//import java.io.FileOutputStream;
 import fyp.SharedServices.KeyStoreHandler;
 import fyp.SharedServices.OCSPHandler;
 import fyp.SharedServices.LogFile;
@@ -11,14 +9,8 @@ import fyp.SharedServices.DatabaseHandler;
 import java.io.File;
 import java.io.IOException;
 import java.security.InvalidKeyException;
-//import java.io.OutputStreamWriter;
-//import java.io.Writer;
-//import java.nio.charset.Charset;
 import java.security.KeyPair;
-//import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
-//import org.apache.commons.io.FileUtils;
-//import org.bouncycastle.cert.X509CRLHolder;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
@@ -28,15 +20,9 @@ import java.security.cert.CertificateParsingException;
 import java.sql.SQLException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
 import org.bouncycastle.cert.X509CRLHolder;
 import org.bouncycastle.operator.OperatorCreationException;
-import org.apache.commons.lang3.SerializationUtils;
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x500.X500NameBuilder;
-import org.bouncycastle.asn1.x500.style.BCStyle;
-import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 
 /**
  *
@@ -45,7 +31,7 @@ import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 public class PKISetup {
 
     private static Logger MainTestLogger = Logger.getLogger(PKISetup.class.getName());
-//Class sets up the trust
+//Trust setting up method 
 
     public static void main(String... args) throws CertificateParsingException, InvalidKeyException, SecurityException, SignatureException {
 
@@ -66,7 +52,7 @@ public class PKISetup {
             String certStorePassword = Configuration.get("certstorePass");
             KeyPair rootKeyPair = CertificateHandler.generateKeyPair();
             // Generate self signed certificate for the Root CA
-            X509Certificate rootCert = CertificateHandler.createSelfSignedCertificate(rootName, rootKeyPair, OCSP_URL);
+            X509Certificate rootCert = CertificateHandler.createSelfSignedCertificate(rootName, rootKeyPair);
 
             // Store private Key and cert in the CA keystore
             KeyStoreHandler.storeCertificateEntry(rootCertificateAlias, rootCert, rootKeyStorePath, rootKeyStorePassword);
@@ -100,7 +86,7 @@ public class PKISetup {
 
             KeyPair caKeyPair = CertificateHandler.generateKeyPair();
             // Generate rootCA-signed certificate for the Signing CA
-            X509Certificate caCert = CertificateHandler.createSignedCertificateIntermediate(caKeyPair, caName, rootCert, rootKeyPair.getPrivate(), false, OCSP_URL);
+            X509Certificate caCert = CertificateHandler.createSignedCertificateIntermediate(caKeyPair, caName, rootCert, rootKeyPair.getPrivate(), false);
             // Store private Key and cert in the CA keystore and Certificates directory
             KeyStoreHandler.storeCertificateEntry(caCertificateAlias, caCert, caKeyStorePath, caKeyStorePassword);
             KeyStoreHandler.storePrivateKeyEntry(caKeyAlias, caKeyPair.getPrivate(), caCert, caKeyStorePath, caKeyStorePassword);
@@ -117,7 +103,7 @@ public class PKISetup {
 
             KeyPair raKeyPair = CertificateHandler.generateKeyPair();
             // Generate rootCA-signed certificate for the RA 
-            X509Certificate raCert = CertificateHandler.createSignedCertificateIntermediate(raKeyPair, raName, rootCert, rootKeyPair.getPrivate(), false, OCSP_URL);
+            X509Certificate raCert = CertificateHandler.createSignedCertificateIntermediate(raKeyPair, raName, rootCert, rootKeyPair.getPrivate(), false);
             // Store private Key and cert in the RA keystore and Certificates directory
             KeyStoreHandler.storeCertificateEntry(raCertificateAlias, raCert, raKeyStorePath, raKeyStorePassword);
             KeyStoreHandler.storePrivateKeyEntry(raKeyAlias, raKeyPair.getPrivate(), raCert, raKeyStorePath, raKeyStorePassword);
@@ -134,7 +120,7 @@ public class PKISetup {
 
             KeyPair vaKeyPair = CertificateHandler.generateKeyPair();
             // Generate rootCA-signed certificate for the VA
-            X509Certificate vaCert = CertificateHandler.createSignedCertificateIntermediate(raKeyPair, vaName, rootCert, rootKeyPair.getPrivate(), true, OCSP_URL);
+            X509Certificate vaCert = CertificateHandler.createSignedCertificateIntermediate(raKeyPair, vaName, rootCert, rootKeyPair.getPrivate(), true);
             // Store private Key and cert in the VA keystore and Certificates directory
             KeyStoreHandler.storeCertificateEntry(vaCertificateAlias, vaCert, vaKeyStorePath, vaKeyStorePassword);
             KeyStoreHandler.storePrivateKeyEntry(vaKeyAlias, vaKeyPair.getPrivate(), vaCert, vaKeyStorePath, vaKeyStorePassword);

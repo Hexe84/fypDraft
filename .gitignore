@@ -6,10 +6,12 @@ Thumbs.db
 src/main/java/unused/
 handshake error.txt
 src/main/java/fyp/SharedServices/OCSPHandler.java
+src/main/java/fyp/SharedServices/OCSPPathChecker.java
 CertStore/
 Truststore/
 Keystore/
 Certificates/
 CRL/
+src/main/resources/
 
 

@@ -1,6 +1,6 @@
 package fyp.SharedServices;
 
-import fyp.UI.UserInput;
+import fyp.UI.AdminUI;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.File;
@@ -73,6 +73,7 @@ import org.bouncycastle.operator.DefaultSignatureAlgorithmIdentifierFinder;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.bc.BcECContentSignerBuilder;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.bouncycastle.pkcs.PKCS10CertificationRequestBuilder;
 import org.bouncycastle.x509.extension.X509ExtensionUtil;
 
 /**
@@ -84,7 +85,7 @@ public class CertificateHandler {
     private static final Logger CertHandlerLogger = Logger.getLogger(CertificateHandler.class.getName());
     static String crlUrl = "http://" + Configuration.get("RevokedPath");
     //String crlUrl = "http://" + Configuration.get("rootIP") + ":" + Configuration.get("rootPort"); + "/Revoked.crl";
-    public String ocspUrl = "http://" + Configuration.get("vaIP") + ":" + Configuration.get("vaPort");
+    public static String ocspUrl = "http://" + Configuration.get("vaIP") + ":" + Configuration.get("vaPort");
 
     static {
         Security.addProvider(new BouncyCastleProvider());
@@ -100,16 +101,26 @@ public class CertificateHandler {
         X509Certificate cert = null;
         try {
 
-            String subjectName = UserInput.normalizeMAC(deviceSpecs.split(";")[0]);
-            PKCS10CertificationRequest csr = CSRHandler.generateCSR(subjectName, keyPair);
+            String subjectName = AdminUI.normalizeMAC(deviceSpecs.split(";")[0]);
+            PKCS10CertificationRequest csr;
+            try {
+                SubjectPublicKeyInfo keyInfo = SubjectPublicKeyInfo.getInstance(keyPair.getPublic().getEncoded());
+                PKCS10CertificationRequestBuilder csrBuilder = new PKCS10CertificationRequestBuilder(new X500Name("CN=Device " + subjectName), keyInfo);
+                ContentSigner contentSigner = new JcaContentSignerBuilder("SHA256withECDSA").setProvider("BC").build(keyPair.getPrivate());
+                csr = csrBuilder.build(contentSigner);
+            } catch (OperatorCreationException e) {
+                CertHandlerLogger.log(Level.SEVERE, "Unable to generate CSR", e);
+                throw e;
+            }
+
             System.out.println("CSR generated with Subject Name: " + csr.getSubject());
             try {
                 cert = new HandshakeHandler(caIP, caPort).requestCertificate(csr, subjectName);
-                
+
             } catch (Exception e) {
                 System.out.println("CSR failed");
             }
-        } catch (NoSuchAlgorithmException | OperatorCreationException e) {
+        } catch (OperatorCreationException e) {
             CertHandlerLogger.log(Level.SEVERE, "Certificate Request Failed! ", e);
         }
         return cert;
@@ -131,7 +142,7 @@ public class CertificateHandler {
      *
      * @param dis
      * @return byte[]
-     * @throws java.io.IOException
+     *
      */
     public static byte[] readDataFromInputStream(DataInputStream dis) throws IOException {
 
@@ -153,10 +164,12 @@ public class CertificateHandler {
 
     }
 
-    public static X509Certificate certificateFromByteArray(byte[] bytes) {
-        /*
+    /*
          * Method gets a X509 Certificate from byte[]
-         */
+     */
+ /* 
+    public static X509Certificate certificateFromByteArray(byte[] bytes) {
+
         try {
             return (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(new ByteArrayInputStream(bytes));
         } catch (Exception e) {
@@ -164,13 +177,14 @@ public class CertificateHandler {
             return null;
         }
     }
-
+     */
     /**
      * Return the crl url from the certificate crlDistributionPoints extension
      *
      * @param cert
      * @return
      */
+    /*
     public static String crlURLFromCert(X509Certificate cert) {
 
         try {
@@ -178,23 +192,6 @@ public class CertificateHandler {
         } catch (IOException e) {
             CertHandlerLogger.log(Level.SEVERE, "Unable to get crlDistributionPoints from cert", e);
             return null;
-        }
-    }
-
-    /*
-    public static String crlURLFromCert(X509Certificate cert) {
-        String url;
-        try {
-            byte[] crldpExtension = cert.getExtensionValue(Extension.cRLDistributionPoints.getId());
-            ASN1Primitive value = X509ExtensionUtil.fromExtensionValue(crldpExtension);
-            CRLDistPoint crldp = CRLDistPoint.getInstance(value);
-            DistributionPoint[] distributionPoints = crldp.getDistributionPoints();
-            url = distributionPoints[0].getDistributionPoint().getName().toASN1Primitive().toString();
-            return url.substring(4, url.length() - 1);
-        } catch (IOException e) {
-            CertHandlerLogger.log(Level.SEVERE, "Unable to get CRLDistPoint from cert", e);
-            return null;
-
         }
     }
      */
@@ -205,6 +202,7 @@ public class CertificateHandler {
      * @param cert
      * @return
      */
+    /*
     public static String ocspURLFromCert(X509Certificate cert) {
 
         try {
@@ -214,8 +212,8 @@ public class CertificateHandler {
             return null;
         }
     }
-
-    /*
+     */
+ /*
     public static Certificate[] createNewChain(Certificate[] chain, X509Certificate cert) {
         
         // Add the given certificate to the chain Certificate[]
@@ -226,20 +224,8 @@ public class CertificateHandler {
         return newchain;
     }
      */
- /*
-    public static String getSubjectName(X509Certificate cert) {
-        X500Name x500name = null;
-        try {
-            x500name = new JcaX509CertificateHolder(cert).getSubject();
-        } catch (CertificateEncodingException e) {
 
-            CertHandlerLogger.log(Level.SEVERE, "Unable to get Subject from cert", e);
-        }
-        RDN cn = x500name.getRDNs(BCStyle.CN)[0];
-        return IETFUtils.valueToString(cn.getFirst().getValue());
-    }
-     */
-    public static X509Certificate createSelfSignedCertificate(String subjectName, KeyPair keyPair, String ocspUrl) throws IOException, NoSuchAlgorithmException, OperatorCreationException, CertificateException {
+    public static X509Certificate createSelfSignedCertificate(String subjectName, KeyPair keyPair) throws IOException, NoSuchAlgorithmException, OperatorCreationException, CertificateException {
 
         BigInteger serialNumber = BigInteger.TEN;
 
@@ -260,10 +246,8 @@ public class CertificateHandler {
         builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(true));
         SubjectKeyIdentifier subjKeyId = new JcaX509ExtensionUtils().createSubjectKeyIdentifier(keyPair.getPublic());
         builder.addExtension(Extension.subjectKeyIdentifier, false, subjKeyId);
-
         builder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign)); //KeyUsage must be critic
         ASN1EncodableVector purposes = new ASN1EncodableVector();
-        //purposes.add(KeyPurposeId.id_kp_OCSPSigning);
         purposes.add(KeyPurposeId.anyExtendedKeyUsage);
         builder.addExtension(Extension.extendedKeyUsage, false, new DERSequence(purposes));
         GeneralName generalName = new GeneralName(GeneralName.uniformResourceIdentifier, new DERIA5String(crlUrl));
@@ -275,14 +259,12 @@ public class CertificateHandler {
         AuthorityInformationAccess aia = new AuthorityInformationAccess(Extension.authorityInfoAccess, gn);
         builder.addExtension(Extension.authorityInfoAccess, false, aia);
 
-        //-------------------
         X509CertificateHolder holder = builder.build(contentSigner);
 
         return (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(new ByteArrayInputStream(holder.getEncoded()));
     }
 
-    //public static X509Certificate createSignedCertificateIntermediate(String commonName, KeyPair keyPair, X509Certificate signerCertificate, PrivateKey issuerPrivateKey, Boolean isVA, String ocspUrl) throws IOException, NoSuchAlgorithmException, OperatorCreationException, CertificateException {
-    public static X509Certificate createSignedCertificateIntermediate(KeyPair keyPair, String commonName, X509Certificate signerCertificate, PrivateKey signerPrivateKey, Boolean isVA, String ocspUrl) throws IOException, NoSuchAlgorithmException, OperatorCreationException, CertificateException {
+    public static X509Certificate createSignedCertificateIntermediate(KeyPair keyPair, String commonName, X509Certificate signerCertificate, PrivateKey signerPrivateKey, Boolean isVA) throws IOException, NoSuchAlgorithmException, OperatorCreationException, CertificateException {
         /* EXTENSION:CRITICAL
          * basicConstraint(true)
 		 * authorityKeyIdentifier keyid:always, issuer:always false
@@ -292,10 +274,6 @@ public class CertificateHandler {
 		 * ExtendedKeyUsage:
 		 * authorityInfoAccess: http://ocsp.localhost.org
          */
-        //KeyPair keyPair = CertificateHandler.generateKeyPair();
-        // X500Name signerName = new X500Name(signerCertificate.getSubjectDN().getName());
-        //X500Name subjectName = new X500NameBuilder(BCStyle.INSTANCE).addRDN(BCStyle.CN, subject).build();
-        //X500Name subjectName = new X500Name("CN=Device " + subject);
 
         String currentTimeInMills = String.valueOf(1000 * System.currentTimeMillis());
         BigInteger certificateSerialNumber = new BigInteger(currentTimeInMills);
@@ -303,21 +281,26 @@ public class CertificateHandler {
         Calendar calendar = Calendar.getInstance();
         Date notBefore = calendar.getTime();
         if (isVA == true) {
-            calendar.add(Calendar.MONTH, 1); // valid for short time if it's VA
+            calendar.add(Calendar.YEAR, 30); // valid for short time if it's VA
         } else {
             calendar.add(Calendar.YEAR, 30); // valid for 30 years
         }
+
         Date notAfter = calendar.getTime();
 
         JcaX509v3CertificateBuilder builder = new JcaX509v3CertificateBuilder(signerCertificate, certificateSerialNumber, notBefore, notAfter, new X500Principal("CN=" + commonName), keyPair.getPublic());
 
         ContentSigner cSigner = new JcaContentSignerBuilder("SHA256withECDSA").setProvider("BC").build(signerPrivateKey);
-        //eXTENSIONS
+        //Extensions
         builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(0));
         builder.addExtension(Extension.subjectKeyIdentifier, false, new JcaX509ExtensionUtils().createSubjectKeyIdentifier(keyPair.getPublic()));
         builder.addExtension(Extension.authorityKeyIdentifier, false, new JcaX509ExtensionUtils().createAuthorityKeyIdentifier(signerCertificate));
-        builder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
 
+        if (commonName.contains("Signing")) {
+            builder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.keyCertSign | KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
+        } else {
+            builder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
+        }
         if (ocspUrl != null) {
             GeneralName ou = new GeneralName(GeneralName.uniformResourceIdentifier, new DERIA5String(ocspUrl));
             builder.addExtension(Extension.authorityInfoAccess, false, new AuthorityInformationAccess(Extension.authorityInfoAccess, ou));
@@ -338,17 +321,7 @@ public class CertificateHandler {
             //TODO: figure out how to add extension ocsp_nocheck and ocsp_nonce - do I need nonce 
 
             builder.addExtension(Extension.extendedKeyUsage, false, new DERSequence(purposes));
-            /*
-            AccessDescription ocsp = new AccessDescription(AccessDescription.id_ad_ocsp,
-                    new GeneralName(GeneralName.uniformResourceIdentifier, new DERIA5String("http://ocsp.localhost.org")));
-
-            ASN1EncodableVector aia_ASN = new ASN1EncodableVector();
-            aia_ASN.add(caIssuers);
-            aia_ASN.add(ocsp);
-
-            certGen.addExtension(Extension.authorityInfoAccess, false, new DERSequence(aia_ASN));
-            kUsage = new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment |);
-             */
+  
         }
 
         X509CertificateHolder holder = builder.build(cSigner);
@@ -359,15 +332,14 @@ public class CertificateHandler {
     /*
          * Sign the given OKCS10CertificationRequest with the given private key
      */
-    public static X509Certificate createDeviceCertificate(PrivateKey signerPrivateKey, X509Certificate signerCertificate, X500Name commonName, SubjectPublicKeyInfo subjectPublicKeyInfo, String ocspUrl) throws IOException, OperatorCreationException, NoSuchAlgorithmException, CertificateException, NoSuchProviderException {
+    public static X509Certificate createDeviceCertificate(PrivateKey signerPrivateKey, X509Certificate signerCertificate, X500Name commonName, SubjectPublicKeyInfo subjectPublicKeyInfo) throws IOException, OperatorCreationException, NoSuchAlgorithmException, CertificateException, NoSuchProviderException {
 
         /* EXTENSION:	CRITICAL
          * basicConstraints(false)true
-		 * authorityKeyIdentifier keyid:always
+		 * authorityKeyIdentifier:hash keyid
 		 * subjectKeyIdentifier:hash
-		 * keyUsage: digitalSignature, nonRepudiation
-		 * nsComment "Device Certificate"
-		 * authorityInfoAccess: http://ocsp.localhost.or
+		 * keyUsage: digitalSignature, nonRepudiation, dataEncipherment, keyEncipherment
+		 * authorityInfoAccess: http://vaIP:vaPort
          */
         AlgorithmIdentifier sigAlgId = new DefaultSignatureAlgorithmIdentifierFinder().find("SHA256withECDSA");
         AlgorithmIdentifier digAlgId = new DefaultDigestAlgorithmIdentifierFinder().find(sigAlgId);
@@ -464,13 +436,14 @@ public class CertificateHandler {
         return kpGen.generateKeyPair();
     }
 
-    public static void validateCertificate(X509Certificate userCert, X509Certificate issuerCert, X509Certificate ocspResponderCert) {
+    public static void validateCertificate(X509Certificate deviceCert, X509Certificate issuerCert, X509Certificate ocspResponderCert) {
+        //X509Certificate[] chain = new X509Certificate[]{issuerCert, deviceCert};
         try {
-
-            OCSPHandler.checkPathDeviceCertificate(userCert, false, new OCSPPathChecker(issuerCert, ocspResponderCert), new X509Certificate[]{}, issuerCert);
+            OCSPValidator.validate(deviceCert, issuerCert, Configuration.get("vaIP"), new Integer(Configuration.get("vaPort")));
+            //OCSPHandler.checkPathDeviceCertificate(deviceCert, issuerCert, new X509Certificate[]{}, new OCSPPathChecker(issuerCert, ocspResponderCert));
+            //CertHandlerLogger.log(Level.INFO, "Validation Successful!");
         } catch (Exception e) {
-            CertHandlerLogger.log(Level.SEVERE, "Cannot retrieve certificate from KeyStore ", e);
-
+            CertHandlerLogger.log(Level.SEVERE, "Cannot validate certificate. ", e);
         }
     }
 }

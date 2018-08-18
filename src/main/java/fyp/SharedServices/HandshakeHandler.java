@@ -12,8 +12,11 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.bouncycastle.cert.ocsp.OCSPReq;
+import org.bouncycastle.cert.ocsp.OCSPResp;
 
 public class HandshakeHandler {
 
@@ -34,7 +37,7 @@ public class HandshakeHandler {
     public X509Certificate requestCertificate(PKCS10CertificationRequest csr, String deviceSpecs) throws IOException {
         byte[] response;
         //Output device specification
-        
+
         dataOutputStream.write(deviceSpecs.getBytes());
         response = CertificateHandler.readDataFromInputStream(dataInputStream);
         //write the CSR to the RA
@@ -57,21 +60,37 @@ public class HandshakeHandler {
 
     public String revokeCertificate(BigInteger serialNo) throws IOException {
         dataOutputStream.write(serialNo.toByteArray());
-        // device status
         byte[] response = CertificateHandler.readDataFromInputStream(dataInputStream);
         System.out.println("Data Input Stream response: " + new String(response));
         // revocation request
         dataOutputStream.write("Revocation Request".getBytes());
         // read response and display
+        //String hostInfo = sslSocket.getInetAddress().getCanonicalHostName() + ":" + sslSocket.getPort();
+        //System.out.println("Certificate Revocation Request sent to " + hostInfo);
+
+        return "------------------------ " + Arrays.toString(response) + "------------------------ ";
+    }
+
+    public OCSPResp validateCertificate(OCSPReq ocspReq) throws IOException {
+
+        dataOutputStream.write(ocspReq.getEncoded());
+        // device status
+        byte[] response = CertificateHandler.readDataFromInputStream(dataInputStream);
+        System.out.println("Data Input Stream response: " + new String(response));
+        // revocation request
+        dataOutputStream.write("OCSP Request".getBytes());
+        // read response and display
         //String responseMessage = new String(CertificateHandler.readDataFromInputStream(dataInputStream));
         String hostInfo = sslSocket.getInetAddress().getCanonicalHostName() + ":" + sslSocket.getPort();
-        System.out.println("Certificate Revocation Request sent to " + hostInfo );
-        //TODO: check if it gives the same as above
-        //get response on revocation request
-        //responseMessage = new String(CertificateHandler.readDataFromInputStream(dataInputStream));
-        //System.out.println(hostInfo + " : " + responseMessage);
-        
-        return new String("------------------------ "+response+ "------------------------ ");
+        try {
+            response = CertificateHandler.readDataFromInputStream(dataInputStream);
+            System.out.println("OCSPResp read data from input resp: " + new String(response));
+        } catch (Exception e) {
+            handshakeLogger.log(Level.SEVERE, "OCSPResp read data from input exception", e);
+        }
+        System.out.println("OCSP Request sent to " + hostInfo);
+
+        return new OCSPResp(response);
     }
 
 }

@@ -1,39 +1,24 @@
 package fyp.Authorities.RootCA;
 
-import fyp.Authorities.RootCA.*;
-import fyp.SharedServices.CSRHandler;
 import fyp.SharedServices.CertificateHandler;
 import fyp.SharedServices.Configuration;
-import fyp.Authorities.RA.RARequestHandler;
 import fyp.SharedServices.DatabaseHandler;
 import fyp.SharedServices.OCSPHandler;
-import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.security.KeyPair;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
-import java.security.cert.CertificateEncodingException;
-//import java.security.cert.CertificateEncodingException;
-import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.sql.Date;
 import java.sql.SQLException;
-import java.util.Calendar;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.commons.io.FileUtils;
-import org.bouncycastle.asn1.x509.CRLReason;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.cert.X509CRLHolder;
-//import org.bouncycastle.operator.OperatorCreationException;
 
 /**
  *
@@ -94,7 +79,7 @@ public class RootCARequestHandler extends Thread implements Runnable {
                 //save to the updated crl file and CRL database
                 FileUtils.writeByteArrayToFile(new File(crlFileName), updatedCrlHolder.getEncoded());
                 //updatedCrlHolder.getRevokedCertificate(new BigInteger(certSerialNumber)).getExtension(Extension.reasonCode);
-                System.out.println("CRL (version " + crlHolder.getExtension(Extension.cRLNumber).getParsedValue().toString()
+                System.out.println("CRL (version " + updatedCrlHolder.getExtension(Extension.cRLNumber).getParsedValue().toString()
                         + ") Successfully Updated with new entry '" + certSerialNumber + "'");
 
                 String res = "Certificate no: " + certSerialNumber + " revoked Successfully";

@@ -31,9 +31,9 @@ import java.math.BigInteger;
  *
  * @author Marta
  */
-public class UserInput {
+public class AdminUI {
 
-    private static final Logger UserInputLogger = Logger.getLogger(UserInput.class.getName());
+    private static final Logger UserInputLogger = Logger.getLogger(AdminUI.class.getName());
 
     private static X509Certificate devCert;
     private static String raIP;
@@ -74,32 +74,7 @@ public class UserInput {
         System.setProperty("javax.net.ssl.trustStorePassword", tsPass);
         System.setProperty("javax.net.ssl.keyStore", deviceKsPath);
         System.setProperty("javax.net.ssl.keyStorePassword", deviceKsPass);
-//----------------delete if needed-------------
-        /*      TrustManagerFactory trustMgrFact = TrustManagerFactory.getInstance("SunX509");
 
-        trustMgrFact.init(new KeyStore(tsPath));
-
-        SSLContext clientContext = null;
-
-        try {
-            clientContext = SSLContext.getInstance("TLS");
-            clientContext.init(null, trustMgrFact.getTrustManagers(), SecureRandom.getInstance("DEFAULT", "BC"));
-        } catch (NoSuchAlgorithmException ex) {
-            Logger.getLogger(UserInput.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (NoSuchProviderException ex) {
-            Logger.getLogger(UserInput.class.getName()).log(Level.SEVERE, null, ex);
-        }
-
-        try {
-            SSLSocketFactory fact = clientContext.getSocketFactory();
-            SSLSocket cSock = (SSLSocket) fact.createSocket(raIP, raPORT);
-            OutputStream out = cSock.getOutputStream();
-            InputStream in = cSock.getInputStream();
-        } catch (IOException ex) {
-            Logger.getLogger(UserInput.class.getName()).log(Level.SEVERE, null, ex);
-        }
-         */
-//-------------------end of delete if needed---------------------
         /*      try {
             newCert = KeyStoreHandler.getCertificate(deviceCert, deviceKsPath, deviceKsPass);
         } catch (Exception e) {
@@ -155,14 +130,6 @@ public class UserInput {
         return mac.replaceAll("(\\.|\\,|\\:|\\-)", "").toUpperCase();
     }
 
-    /*
-    private static void getCertificateFromStorage(String url, String alias) throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, NoSuchProviderException, OperatorCreationException {
-
-        byte[] bytes = IOUtils.toByteArray(new URL(url).openStream());
-        X509Certificate cert = CertificateHandler.certificateFromByteArray(bytes);
-        KeyStoreHandler.storeCertificateEntry(alias, cert, tsPath, tsPass);
-    }
-     */
     private static void getCertificateFromPath(String path, String alias) throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, NoSuchProviderException, OperatorCreationException {
 
         CertificateFactory certFactory;
@@ -267,7 +234,6 @@ public class UserInput {
                         KeyStoreHandler.storeCertificateEntry(deviceCert + normMAC, devCert, deviceKsPath, deviceKsPass);
                         KeyStoreHandler.storePrivateKeyEntry(deviceKey + normMAC, keyPair.getPrivate(), devCert, deviceKsPath, deviceKsPass);
                         CertificateHandler.saveCertToFile(devCert, "Device " + normMAC);
-                        //new DatabaseHandler().saveCertToDB(devCert);
                         new DatabaseHandler().saveCertToCertDB(devCert);
                         UserInputLogger.log(Level.INFO, "Certificate for {0} saved to file and Keystore", devCert.getSubjectDN());
                     }
@@ -285,7 +251,7 @@ public class UserInput {
                         int uOp = manageCertMenu();
                         manageCertHandler(uOp, normMAC);
                     } catch (Exception e) {
-                        UserInputLogger.log(Level.INFO, "Certificate for device {0} doesn't exist. Request it first!", MAC);
+                        UserInputLogger.log(Level.INFO, "Certificate for device {0} doesn't exist. Request a new one!", MAC);
                         mainMenu(MAC);
                     }
                     break;
@@ -360,46 +326,36 @@ public class UserInput {
         }
 
         private static void manageCertHandler(int userOption, String normalizedMAC) throws Exception {
+            devCert = KeyStoreHandler.getCertificate(deviceCert + normalizedMAC, deviceKsPath, deviceKsPass);
             switch (userOption) {
 
                 case 1:
                     //1-View Certificate
-                    devCert = KeyStoreHandler.getCertificate(deviceCert + normalizedMAC, deviceKsPath, deviceKsPass);
                     System.out.println(devCert);
                     Desktop.getDesktop().open(new File("./Certificates/"));
-                    /*System.out.println("Press any key to cotinue...");
-                    Scanner sc = new Scanner(System.in);
-                    if (sc.next() != null) {*/
                     int uOption = manageCertMenu();
                     manageCertHandler(uOption, normalizedMAC);
-                    //}
-
-                    // return;
                     break;
                 case 2:
                     //2-Validate Cert
-                    devCert = KeyStoreHandler.getCertificate(deviceCert + normalizedMAC, deviceKsPath, deviceKsPass);
-                    if (devCert == null) {
-                        System.out.println("Error! You don't have a certificate, Please request a new one");
-                        return;
-                    }
                     //X509Certificate rootCert = KeyStoreHandler.getCertificate(rootCertAlias, tsPath, tsPass);
-                    X509Certificate rootCert = KeyStoreHandler.getCertificate(rootCertAlias, tsPath, tsPass);
                     X509Certificate vaCert = KeyStoreHandler.getCertificate(vaCertAlias, tsPath, tsPass);
-                    CertificateHandler.validateCertificate(devCert, rootCert, vaCert);
+                    X509Certificate caCert = KeyStoreHandler.getCertificate(caCertAlias, tsPath, tsPass);
+                    try {
+                        CertificateHandler.validateCertificate(devCert, caCert, vaCert);
+                    } catch (Exception e) {
+                        UserInputLogger.log(Level.SEVERE, "Certification Validation Failed !", e);
+
+                    }
                     int uOpt = manageCertMenu();
                     manageCertHandler(uOpt, normalizedMAC);
                     break;
                 case 3:
                     //3-Revoke cert
-                    devCert = KeyStoreHandler.getCertificate(deviceCert + normalizedMAC, deviceKsPath, deviceKsPass);
-                    BigInteger serialNo = devCert.getSerialNumber();
-
                     String rootIP = Configuration.get("rootIP");
                     int rootPort = Integer.parseInt(Configuration.get("rootPort"));
-
                     try {
-                        new HandshakeHandler(rootIP, rootPort).revokeCertificate(serialNo);
+                        new HandshakeHandler(rootIP, rootPort).revokeCertificate(devCert.getSerialNumber());
                     } catch (Exception e) {
                         UserInputLogger.log(Level.SEVERE, "Certification Revocation Failed !", e);
                     }
